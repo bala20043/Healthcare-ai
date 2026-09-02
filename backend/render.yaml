@@ -13,7 +13,7 @@ services:
       - key: GEMINI_API_KEY
         sync: false
       - key: GEMINI_MODEL
-        value: gemini-3.6-flash
+        value: gemini-3.5-flash
       - key: SUPABASE_URL
         value: https://dvvzzgbojrqtzrgcisvq.supabase.co
       - key: SUPABASE_ANON_KEY
