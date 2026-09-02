@@ -42,9 +42,16 @@ export default function ChatInterface({ activeChat, onChatCreated }) {
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
 
+  const [currentChatId, setCurrentChatId] = useState(activeChat);
+
   const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, []);
+
+  // Sync currentChatId when activeChat prop changes from parent
+  useEffect(() => {
+    setCurrentChatId(activeChat);
+  }, [activeChat]);
 
   // Fetch messages when activeChat changes
   useEffect(() => {
@@ -93,7 +100,8 @@ export default function ChatInterface({ activeChat, onChatCreated }) {
     setIsLoading(true);
 
     try {
-      const response = await sendMessage(messageText, activeChat);
+      const targetChatId = currentChatId || activeChat;
+      const response = await sendMessage(messageText, targetChatId);
 
       if (response) {
         const aiMessage = {
@@ -107,9 +115,12 @@ export default function ChatInterface({ activeChat, onChatCreated }) {
 
         setMessages((prev) => [...prev, aiMessage]);
 
-        // If a new conversation was created on Supabase, notify parent
-        if (response.chatId && response.chatId !== activeChat && onChatCreated) {
-          onChatCreated(response.chatId);
+        // Keep local chat session locked to the active thread
+        if (response.chatId) {
+          setCurrentChatId(response.chatId);
+          if (response.chatId !== activeChat && onChatCreated) {
+            onChatCreated(response.chatId);
+          }
         }
       }
     } catch (err) {
