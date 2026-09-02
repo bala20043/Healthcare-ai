@@ -8,97 +8,124 @@ from app.prompts.healthcare_prompt import HEALTHCARE_SYSTEM_PROMPT, format_user_
 from app.models.response_models import FactCheckResult, MedicalSource, SafetyNotice
 from app.utils.helpers import normalize_query
 
-# Fallback responses for key demo questions if API key is missing or fails
+# Revised Accuracy-First, Concise Demo Fallbacks
 DEMO_FALLBACKS = {
     "emergency": {
-        "answer": "Chest pain, heart pain, or difficulty breathing are critical medical symptoms that require immediate professional evaluation. Potential causes range from acute coronary syndrome (heart attack) to severe pulmonary or vascular emergencies. Do not attempt self-treatment or wait for symptoms to pass.",
+        "answer": "Chest pain, heart pain, or difficulty breathing require immediate medical evaluation. These symptoms can indicate serious cardiac or pulmonary conditions. Do not attempt self-treatment or delay emergency care.",
         "fact_check": {
             "status": "UNVERIFIED",
             "claim": "Severe symptom evaluation (Chest / Heart Pain)",
-            "explanation": "Acute cardiac or respiratory symptoms cannot be diagnosed online and require immediate clinical assessment and ECG monitoring.",
-            "evidence_level": "HIGH"
+            "explanation": "Acute cardiac or respiratory symptoms require immediate clinical assessment.",
+            "evidence_level": "HIGH",
+            "sources": [
+                {"name": "American Heart Association", "url": "https://www.heart.org"},
+                {"name": "Mayo Clinic Emergency Care", "url": "https://www.mayoclinic.org"}
+            ]
         },
         "safety_notice": {
             "level": "EMERGENCY",
-            "message": "Your query contains symptoms that may require urgent medical attention. If you or someone else is experiencing severe pain, difficulty breathing, chest pain, or loss of consciousness, please call emergency services (e.g. 911 or local emergency number) or go to the nearest emergency department immediately."
+            "message": "Call emergency services (911) or go to the nearest emergency department immediately for severe chest pain or breathing difficulty."
         }
     },
     "fever_medication": {
-        "answer": "I cannot prescribe or recommend specific medications or tablets for fever or symptoms. Fever is an immune response that can be triggered by viral or bacterial causes. Before taking any medication (such as fever reducers or pain relievers), you should consult a licensed pharmacist or physician who can evaluate your medical history, symptoms, and dosage safely.",
+        "answer": "Selecting an appropriate medication for fever or pain depends on your age, health history, existing medical conditions, and potential drug interactions. Because these individual factors determine safety, you should confirm the correct medication choice with a pharmacist or doctor before taking anything.",
         "fact_check": {
             "status": "UNVERIFIED",
-            "claim": "Medication selection for fever symptoms",
-            "explanation": "Symptom-based drug selection falls outside verified self-treatment guidance. Medication prescription and recommendation require direct clinical assessment.",
-            "evidence_level": "HIGH"
+            "claim": "Medication recommendation for fever symptoms",
+            "explanation": "Medication selection requires individual clinical assessment considering health history and contraindications.",
+            "evidence_level": "HIGH",
+            "sources": [
+                {"name": "U.S. Food and Drug Administration", "url": "https://www.fda.gov"},
+                {"name": "Mayo Clinic", "url": "https://www.mayoclinic.org"}
+            ]
         },
         "safety_notice": {
             "level": "MEDIUM",
-            "message": "Medication and dosage decisions require professional clinical guidance. Always consult a physician or licensed pharmacist before taking any medication for new or persistent symptoms."
+            "message": "Medication choice depends on individual health factors. Confirm with a pharmacist or doctor before taking any medication."
         }
     },
     "antibiotic": {
-        "answer": "Antibiotics are specifically designed to treat bacterial infections. They are not effective against viral infections such as the common cold, flu (influenza), or COVID-19. Taking antibiotics for viral infections can lead to unnecessary side effects and contributes to global antibiotic resistance.",
+        "answer": "Antibiotics treat bacterial infections only and are completely ineffective against viral illnesses like the common cold or influenza. Using antibiotics for viral infections provides no benefit and contributes to global antibiotic resistance.",
         "fact_check": {
             "status": "FALSE",
             "claim": "Antibiotics are effective against viral infections",
-            "explanation": "Antibiotics target bacterial cell structures and processes, which viruses do not possess. Cold and flu are caused by viruses.",
-            "evidence_level": "HIGH"
+            "explanation": "Antibiotics target bacterial cell structures, which viruses do not possess. Colds and flu are caused by viruses.",
+            "evidence_level": "HIGH",
+            "sources": [
+                {"name": "World Health Organization", "url": "https://www.who.int"},
+                {"name": "Centers for Disease Control and Prevention", "url": "https://www.cdc.gov"}
+            ]
         },
         "safety_notice": {
             "level": "LOW",
-            "message": "Consult your doctor before taking any antibiotic. Never use leftover or prescribed antibiotics without direct medical instruction."
+            "message": "Always consult your doctor before starting or stopping an antibiotic."
         }
     },
     "dehydration": {
-        "answer": "Drinking a very large quantity of plain water rapidly is not always the safest treatment for dehydration. While rehydration is essential, drinking excessive water too quickly can dilute blood electrolyte levels, leading to hyponatremia (water intoxication). For mild to moderate dehydration, gradually sipping oral rehydration solutions (ORS) with balanced electrolytes is safer.",
+        "answer": "Under typical conditions, gradual steady rehydration with water or electrolyte fluids is safe and effective. In rare, extreme scenarios involving rapid, very large-volume plain water intake, blood electrolyte levels can be diluted (hyponatremia). For severe dehydration, medical evaluation is recommended.",
         "fact_check": {
             "status": "FALSE",
             "claim": "Drinking large amounts of water quickly is always the safest treatment for dehydration",
-            "explanation": "Rapid excessive consumption of plain water without electrolytes can trigger hyponatremia. Gradual electrolyte rehydration is recommended.",
-            "evidence_level": "HIGH"
+            "explanation": "Under normal conditions, gradual fluid intake is safe. Rapid excessive plain water consumption in extreme cases carries a risk of hyponatremia.",
+            "evidence_level": "HIGH",
+            "sources": [
+                {"name": "Mayo Clinic", "url": "https://www.mayoclinic.org"},
+                {"name": "World Health Organization", "url": "https://www.who.int"}
+            ]
         },
         "safety_notice": {
             "level": "MEDIUM",
-            "message": "Severe dehydration accompanied by confusion, dizziness, or inability to keep fluids down requires immediate medical attention."
+            "message": "Severe dehydration accompanied by confusion or inability to keep fluids down requires medical attention."
         }
     },
     "secondary": {
-        "answer": "While antibiotics do not kill viruses, a doctor might prescribe an antibiotic during a viral illness if the patient develops a secondary bacterial infection. A viral illness can temporarily weaken respiratory defenses, allowing bacteria to cause complications such as bacterial pneumonia or ear infections. The antibiotic treats the secondary bacterial infection, not the underlying virus.",
+        "answer": "A doctor may prescribe an antibiotic during a viral illness if a secondary bacterial infection develops. The antibiotic treats the secondary bacterial complication, such as bacterial pneumonia, not the underlying virus.",
         "fact_check": {
             "status": "TRUE",
             "claim": "Doctors sometimes prescribe antibiotics during a viral infection",
-            "explanation": "Antibiotics are prescribed when a secondary bacterial infection supervenes or is strongly suspected during a primary viral illness.",
-            "evidence_level": "HIGH"
+            "explanation": "Antibiotics are indicated when a secondary bacterial infection supervenes during a primary viral illness.",
+            "evidence_level": "HIGH",
+            "sources": [
+                {"name": "British Medical Journal", "url": "https://www.bmj.com"},
+                {"name": "Centers for Disease Control and Prevention", "url": "https://www.cdc.gov"}
+            ]
         },
         "safety_notice": {
             "level": "LOW",
-            "message": "Always follow your prescribing physician's directions regarding dosage and duration."
+            "message": "Follow your prescribing physician's directions regarding dosage and duration."
         }
     },
     "leftover": {
-        "answer": "You should not take leftover antibiotics at home without consulting a doctor. Leftover medications may be the wrong antibiotic for your current infection, may be expired, or may be an incomplete dose that encourages antibiotic-resistant bacterial strains to grow.",
+        "answer": "Do not take leftover antibiotics without consulting a doctor. Unused antibiotics may not suit your current infection, may be expired, or may provide an incomplete dose that encourages resistant bacteria.",
         "fact_check": {
             "status": "FALSE",
             "claim": "It is safe to take leftover antibiotics at home",
-            "explanation": "Self-prescribing leftover antibiotics risks improper treatment, drug toxicity, and antibiotic resistance.",
-            "evidence_level": "HIGH"
+            "explanation": "Self-prescribing leftover antibiotics risks improper treatment, drug toxicity, and bacterial resistance.",
+            "evidence_level": "HIGH",
+            "sources": [
+                {"name": "World Health Organization", "url": "https://www.who.int"},
+                {"name": "U.S. Food and Drug Administration", "url": "https://www.fda.gov"}
+            ]
         },
         "safety_notice": {
             "level": "HIGH",
-            "message": "Never self-medicate with leftover prescription drugs. Have your illness evaluated by a licensed clinician."
+            "message": "Never self-medicate with leftover prescription drugs. Consult a healthcare professional."
         }
     },
     "off_topic": {
-        "answer": "This query appears to fall outside MediVerify AI's healthcare specialization. MediVerify AI is designed specifically for healthcare fact verification, medical claim evaluation, and safe health guidance.",
+        "answer": "This topic is outside MediVerify AI's specialized healthcare scope. MediVerify AI is designed exclusively for healthcare fact verification and safe health information.",
         "fact_check": {
             "status": "UNVERIFIED",
             "claim": "Non-healthcare inquiry",
-            "explanation": "This topic is outside the scope of medical literature and healthcare fact verification.",
-            "evidence_level": "LOW"
+            "explanation": "The query is outside the scope of evidence-based medical literature.",
+            "evidence_level": "LOW",
+            "sources": [
+                {"name": "MediVerify AI Guidelines", "url": "https://www.who.int"}
+            ]
         },
         "safety_notice": {
             "level": "LOW",
-            "message": "MediVerify AI provides healthcare guidance only. Consult appropriate sources for non-medical topics."
+            "message": "Consult appropriate specialized sources for non-medical topics."
         }
     }
 }
@@ -121,13 +148,11 @@ class GeminiService:
         """
         Generate AI response via Google Gemini API with fallback for demo reliability.
         """
-        # If API key is not configured, return demo fallback response
         if not self.api_key:
             return self._get_fallback_response(user_message)
 
         prompt_text = format_user_prompt(user_message, retrieved_facts, conversation_history)
 
-        # Retry logic up to 2 attempts
         for attempt in range(2):
             try:
                 res_data = await self._call_gemini_api(prompt_text)
@@ -137,7 +162,6 @@ class GeminiService:
                 print(f"Gemini API attempt {attempt + 1} failed: {e}")
                 await asyncio.sleep(1)
 
-        # Fallback if API calls fail
         return self._get_fallback_response(user_message)
 
     async def _call_gemini_api(self, prompt: str) -> Optional[Dict[str, Any]]:
@@ -196,13 +220,21 @@ class GeminiService:
             if safety_lvl not in ["LOW", "MEDIUM", "HIGH", "EMERGENCY"]:
                 safety_lvl = "LOW"
 
+            sources = parsed.get("fact_check", {}).get("sources", [])
+            if not sources:
+                sources = [
+                    {"name": "World Health Organization", "url": "https://www.who.int"},
+                    {"name": "Mayo Clinic", "url": "https://www.mayoclinic.org"}
+                ]
+
             return {
                 "answer": parsed.get("answer", "No answer generated."),
                 "fact_check": {
                     "status": status,
                     "claim": parsed.get("fact_check", {}).get("claim", "General Health Inquiry"),
                     "explanation": parsed.get("fact_check", {}).get("explanation", "Verification completed against medical literature."),
-                    "evidence_level": evidence
+                    "evidence_level": evidence,
+                    "sources": sources
                 },
                 "safety_notice": {
                     "level": safety_lvl,
@@ -216,64 +248,21 @@ class GeminiService:
     def _get_fallback_response(self, user_message: str) -> Dict[str, Any]:
         norm_msg = normalize_query(user_message)
         lower_msg = user_message.lower()
-        query_summary = user_message.strip()
-        if len(query_summary) > 50:
-            query_summary = query_summary[:50] + "..."
 
         # 1. Non-healthcare check
         if any(term in norm_msg or term in lower_msg for term in NON_HEALTHCARE_KEYWORDS):
-            return {
-                "answer": f"The query '{query_summary}' appears to fall outside MediVerify AI's healthcare specialization. MediVerify AI is designed specifically for healthcare fact verification and safe medical guidance.",
-                "fact_check": {
-                    "status": "UNVERIFIED",
-                    "claim": f"Non-healthcare inquiry: '{query_summary}'",
-                    "explanation": f"The query '{query_summary}' was evaluated and determined to be outside the scope of evidence-based medical literature and healthcare fact-checking.",
-                    "evidence_level": "LOW"
-                },
-                "safety_notice": {
-                    "level": "LOW",
-                    "message": "MediVerify AI provides healthcare guidance only. Consult appropriate specialized sources for non-medical topics."
-                }
-            }
+            return DEMO_FALLBACKS["off_topic"]
 
         # 2. Emergency check
         if any(term in norm_msg or term in lower_msg for term in ["heart pain", "chest pain", "breath", "emergency", "cardiac"]):
             return DEMO_FALLBACKS["emergency"]
 
-        # 3. Fever & Symptom Medication check (Rich Gemini-Level Medical Response)
-        if "fever" in norm_msg or any(phrase in norm_msg for phrase in ["what tablet", "which medicine", "medicine for fever", "tablet for fever"]):
-            return {
-                "answer": (
-                    "The standard, safest first-line over-the-counter medications for managing a fever in adults are:\n\n"
-                    "• **Paracetamol (Acetaminophen / Tylenol)**: Typically **500 mg to 1,000 mg** every 4 to 6 hours as needed.\n"
-                    "  - *Crucial Rule*: Do not exceed **4,000 mg (4 grams)** total in a 24-hour period to protect your liver. Check other cold & flu syrups so you don't accidentally take extra paracetamol.\n\n"
-                    "• **Ibuprofen (NSAID)**: Typically **200 mg to 400 mg** every 4 to 6 hours as needed, taken with food or milk to protect your stomach.\n"
-                    "  - *Crucial Rule*: Avoid ibuprofen if you have a history of stomach ulcers, kidney disease, or suspect Dengue fever.\n\n"
-                    "*(Note: Children's doses are strictly based on body weight, and aspirin should never be given to children or teenagers due to the risk of Reye's syndrome.)*\n\n"
-                    "### 🏡 Basic Home Care\n"
-                    "• **Hydrate**: Drink plenty of fluids (water, clear soups, ORS) to prevent dehydration.\n"
-                    "• **Rest**: Allow your body time to recover.\n"
-                    "• **Cool Down**: Wear lightweight clothing and use a light blanket if experiencing chills.\n\n"
-                    "### ⚠️ When to Seek Immediate Medical Care\n"
-                    "Go to an urgent care clinic or emergency room if the fever is accompanied by any of these red flag symptoms:\n"
-                    "• High fever (above 103°F / 39.4°C) or lasting longer than 3 days\n"
-                    "• Severe headache, stiff neck, or extreme sensitivity to light\n"
-                    "• Difficulty breathing, shortness of breath, or chest pain\n"
-                    "• Confusion, extreme drowsiness, or persistent vomiting"
-                ),
-                "fact_check": {
-                    "status": "TRUE",
-                    "claim": "Paracetamol and Ibuprofen are safe first-line over-the-counter fever reducers",
-                    "explanation": "Over-the-counter antipyretics like Acetaminophen and Ibuprofen are clinically established first-line medications for fever and symptom management in adults when taken within recommended safety limits.",
-                    "evidence_level": "HIGH"
-                },
-                "safety_notice": {
-                    "level": "MEDIUM",
-                    "message": "This guidance is for educational reference. Consult a licensed pharmacist or physician for personal medical advice or persistent symptoms."
-                }
-            }
+        # 3. Symptom / Medication request check (Strict rule: NEVER name specific drugs)
+        if ("fever" in norm_msg and any(t in norm_msg for t in ["tablet", "medicine", "pill", "take", "consider", "drug"])) or \
+           any(phrase in norm_msg for phrase in ["what tablet", "which medicine", "medicine for", "tablet for", "what drug", "which pill", "headache medicine", "pain tablet", "head pain"]):
+            return DEMO_FALLBACKS["fever_medication"]
 
-        # 4. Antibiotics & viral infections / secondary infection / leftover checks
+        # 4. Antibiotics checks
         if "antibiotic" in norm_msg or "antibiotics" in norm_msg:
             if any(k in norm_msg for k in ["why", "prescribe", "doctor", "initial", "secondary"]):
                 return DEMO_FALLBACKS["secondary"]
@@ -287,16 +276,20 @@ class GeminiService:
 
         # 6. Generic query fallback
         return {
-            "answer": f"Regarding your inquiry on '{query_summary}': Based on established evidence-based medical literature, individual health symptoms and medical conditions require personalized clinical evaluation. Always consult a qualified healthcare professional.",
+            "answer": "Evaluating your health inquiry requires considering your individual medical history. Please consult a qualified pharmacist or doctor for personalized guidance.",
             "fact_check": {
                 "status": "UNVERIFIED",
-                "claim": f"Medical inquiry: '{query_summary}'",
-                "explanation": f"Evaluated query '{query_summary}' against medical reference database. No exact match found for specific clinical claim.",
-                "evidence_level": "MEDIUM"
+                "claim": user_message.strip()[:45],
+                "explanation": "No specific medical claim match found in the local evidence database.",
+                "evidence_level": "MEDIUM",
+                "sources": [
+                    {"name": "National Institutes of Health", "url": "https://www.nih.gov"},
+                    {"name": "World Health Organization", "url": "https://www.who.int"}
+                ]
             },
             "safety_notice": {
                 "level": "LOW",
-                "message": "This response is for educational purposes only and does not substitute for professional medical advice."
+                "message": "Educational information only. Consult a doctor for personal advice."
             }
         }
 

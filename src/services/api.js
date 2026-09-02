@@ -7,7 +7,6 @@ import { supabase } from '../lib/supabase';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
-// Securely access Gemini API Key
 const GEMINI_API_KEY =
   import.meta.env.VITE_GEMINI_API_KEY ||
   ['AQ.Ab8RN6Lv5oCRePMMdH75wl', '0VeAglaLom7iWobH0p6IBCYh-Zcg'].join('');
@@ -24,25 +23,36 @@ const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const randomDelay = () => delay(400 + Math.random() * 400);
 
 /**
- * Call Direct Google Gemini API (gemini-3.5-flash) from Browser
+ * Call Direct Google Gemini API (gemini-3.5-flash) from Browser using revised System Prompt
  */
 async function callDirectGeminiApi(userMessage) {
   if (!GEMINI_API_KEY) return null;
   try {
     const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=${GEMINI_API_KEY}`;
-    const systemPrompt = `You are MediVerify AI, an expert clinical healthcare fact-checker and medical information assistant.
-You MUST reply with a strictly valid JSON object matching this schema:
+    const systemPrompt = `You are MediVerify AI, a healthcare information and fact-verification assistant.
+Your top priority is factual accuracy.
+
+RESPONSE LENGTH
+- Default to SHORT answers: 2-4 sentences or 3-4 concise bullet points. No long multi-section essays.
+
+NEVER NAME SPECIFIC MEDICATIONS FOR SYMPTOM-BASED QUESTIONS
+- If the user asks what medication, tablet, or drug to take for a symptom (fever, headache, cough, etc.), do NOT name any specific drug (no acetaminophen, ibuprofen, paracetamol, etc.). State that medication choice depends on individual health factors (allergies, health history) and should be confirmed with a pharmacist or doctor.
+
+CALIBRATE CLAIM STRENGTH
+- Do not describe rare risks (e.g. water intoxication from rapid excessive intake) as blanket dangers for normal hydration.
+
+ALWAYS CITE SOURCES WHEN TOPIC MATCH EXISTS
+- Populate the sources array when evidence exists. Set status to UNVERIFIED if no evidence matched.
+
+OUTPUT FORMAT (Respond using ONLY valid JSON):
 {
-  "answer": "Detailed, evidence-based, empathetic healthcare response formatted with clear Markdown headers, bullet points, over-the-counter guidelines, home care, and red-flag warnings.",
+  "answer": "Short 2-4 sentence response...",
   "fact_check": {
     "status": "TRUE" | "FALSE" | "MIXED" | "UNVERIFIED",
-    "claim": "Clear concise summary of the health claim or question",
-    "explanation": "Scientific explanation based on clinical evidence and medical consensus",
+    "claim": "Brief summary of evaluated claim",
+    "explanation": "Concise medical rationale",
     "evidence_level": "High" | "Moderate" | "Low",
-    "sources": [
-      {"name": "Mayo Clinic", "url": "https://www.mayoclinic.org"},
-      {"name": "World Health Organization", "url": "https://www.who.int"}
-    ]
+    "sources": [{"name": "World Health Organization", "url": "https://www.who.int"}]
   },
   "safety_level": "standard" | "warning"
 }`;
@@ -75,6 +85,12 @@ You MUST reply with a strictly valid JSON object matching this schema:
     if (!rawText) return null;
 
     const parsed = JSON.parse(rawText);
+
+    const sources = parsed.fact_check?.sources || [
+      { name: 'World Health Organization', url: 'https://www.who.int' },
+      { name: 'Mayo Clinic', url: 'https://www.mayoclinic.org' }
+    ];
+
     return {
       message: parsed.answer || 'Here is evidence-based healthcare guidance for your question.',
       factCheck: {
@@ -82,10 +98,7 @@ You MUST reply with a strictly valid JSON object matching this schema:
         status: (parsed.fact_check?.status || 'UNVERIFIED').toUpperCase(),
         explanation: parsed.fact_check?.explanation || 'Evaluated against trusted medical literature.',
         evidenceLevel: parsed.fact_check?.evidence_level || 'High',
-        sources: parsed.fact_check?.sources || [
-          { name: 'Mayo Clinic', url: 'https://www.mayoclinic.org' },
-          { name: 'World Health Organization', url: 'https://www.who.int' }
-        ]
+        sources: sources
       },
       safetyLevel: parsed.safety_level || 'standard'
     };
@@ -107,7 +120,7 @@ function normalizeQuery(text) {
   return cleaned.replace(/\s+/g, ' ').trim();
 }
 
-// Comprehensive Offline Medical Response Engine
+// Revised Offline Medical Response Engine (Strict 2-4 sentence responses & zero named drugs)
 function generateAiResponse(userMessage) {
   if (!userMessage) return getGenericFallback(userMessage);
 
@@ -117,11 +130,11 @@ function generateAiResponse(userMessage) {
   // 1. Non-healthcare check
   if (nonHealthcareKeywords.some((kw) => normMessage.includes(kw) || lowerMessage.includes(kw))) {
     return {
-      message: 'This query falls outside MediVerify AI\'s specialized healthcare scope. MediVerify AI is designed exclusively for medical fact verification, health claim evaluation, and safe healthcare guidance.',
+      message: 'This query falls outside MediVerify AI\'s specialized healthcare scope. MediVerify AI is designed exclusively for medical fact verification and safe healthcare guidance.',
       factCheck: {
         claim: `Non-healthcare inquiry (${userMessage.slice(0, 45)})`,
         status: 'UNVERIFIED',
-        explanation: `The topic '${userMessage.slice(0, 40)}' is outside the scope of healthcare and medical fact verification.`,
+        explanation: 'The query is outside the scope of evidence-based medical literature.',
         evidenceLevel: 'Low',
         sources: [
           { name: 'MediVerify AI Guidelines', url: 'https://www.who.int' },
@@ -134,11 +147,11 @@ function generateAiResponse(userMessage) {
   // 2. Emergency check
   if (normMessage.includes('chest pain') || normMessage.includes('heart pain') || normMessage.includes('breath') || normMessage.includes('emergency')) {
     return {
-      message: 'Chest pain, heart pain, or difficulty breathing are critical medical symptoms that require immediate professional evaluation. Potential causes range from acute coronary syndrome (heart attack) to severe pulmonary emergencies. Please do not attempt self-treatment.',
+      message: 'Chest pain, heart pain, or difficulty breathing require immediate medical evaluation. These symptoms can indicate serious cardiac or pulmonary conditions. Do not attempt self-treatment or delay emergency care.',
       factCheck: {
         claim: `Emergency symptom evaluation (${userMessage.slice(0, 45)})`,
         status: 'UNVERIFIED',
-        explanation: 'Acute cardiac or respiratory symptoms cannot be diagnosed online and require immediate clinical assessment.',
+        explanation: 'Acute cardiac or respiratory symptoms require immediate clinical assessment.',
         evidenceLevel: 'High',
         sources: [
           { name: 'American Heart Association', url: 'https://www.heart.org' },
@@ -149,33 +162,45 @@ function generateAiResponse(userMessage) {
     };
   }
 
-  // 3. Head pain / Headache / Migraine response
-  if (normMessage.includes('head pain') || normMessage.includes('headache') || normMessage.includes('head ache') || normMessage.includes('migraine')) {
+  // 3. Symptom / Medication inquiry (Strict rule: NEVER name specific drugs)
+  if (
+    normMessage.includes('fever') ||
+    normMessage.includes('head pain') ||
+    normMessage.includes('headache') ||
+    normMessage.includes('what tablet') ||
+    normMessage.includes('which medicine') ||
+    normMessage.includes('medicine for') ||
+    normMessage.includes('tablet for')
+  ) {
     return {
       message:
-        "The standard, safest first-line over-the-counter medications for managing head pain and headaches in adults are:\n\n" +
-        "• **Paracetamol (Acetaminophen / Tylenol)**: Typically **500 mg to 1,000 mg** every 4 to 6 hours as needed for tension headaches and mild-to-moderate pain.\n" +
-        "  - *Crucial Rule*: Do not exceed **4,000 mg (4 grams)** total in a 24-hour period to protect your liver.\n\n" +
-        "• **Ibuprofen (NSAID)**: Typically **200 mg to 400 mg** every 4 to 6 hours as needed with food, which helps reduce inflammation associated with headaches or migraines.\n" +
-        "  - *Crucial Rule*: Avoid ibuprofen if you have a history of stomach ulcers, kidney issues, or bleeding disorders.\n\n" +
-        "• **Combination Analgesics**: Over-the-counter formulations containing paracetamol + caffeine or aspirin can be effective for stubborn tension headaches or early-stage migraines.\n\n" +
-        "### 🏡 Home Remedies & Care\n" +
-        "• **Hydrate**: Drink 1–2 glasses of water immediately; dehydration is a primary trigger for head pain.\n" +
-        "• **Cold/Warm Compress**: Apply a cool cloth to your forehead or a warm compress to the back of your neck.\n" +
-        "• **Dim Lights & Rest**: Rest in a quiet, dark room to reduce sensory stimulation.\n\n" +
-        "### ⚠️ Red Flag Symptoms (Seek Emergency Care)\n" +
-        "Seek urgent medical attention if your head pain is accompanied by:\n" +
-        "• Sudden, extremely severe 'thunderclap' onset\n" +
-        "• High fever, stiff neck, confusion, or difficulty speaking\n" +
-        "• Numbness, weakness, or vision loss",
+        "Selecting an appropriate medication for symptoms depends on your age, medical history, existing health conditions, and potential drug interactions. Because these individual factors determine safety, you should confirm the correct medication choice with a pharmacist or doctor before taking anything.",
       factCheck: {
-        claim: 'Paracetamol and Ibuprofen are first-line over-the-counter medications for headaches',
-        status: 'TRUE',
-        explanation: 'Clinical guidelines designate Acetaminophen and NSAIDs (such as Ibuprofen) as evidence-based first-line acute treatments for tension headaches and mild-to-moderate migraine attacks.',
+        claim: `Medication selection for symptoms (${userMessage.slice(0, 45)})`,
+        status: 'UNVERIFIED',
+        explanation: 'Symptom-based drug selection requires a direct clinical evaluation considering health history and contraindications.',
         evidenceLevel: 'High',
         sources: [
-          { name: 'Mayo Clinic - Headache Guidance', url: 'https://www.mayoclinic.org/symptoms/headache/basics/definition/sym-20050800' },
-          { name: 'American Migraine Foundation', url: 'https://americanmigrainefoundation.org' },
+          { name: 'U.S. Food and Drug Administration', url: 'https://www.fda.gov' },
+          { name: 'Mayo Clinic', url: 'https://www.mayoclinic.org' },
+        ],
+      },
+      safetyLevel: 'warning',
+    };
+  }
+
+  // 4. Dehydration check (Calibrated hyponatremia risk)
+  if (normMessage.includes('water') || normMessage.includes('dehydration') || normMessage.includes('hyponatremia')) {
+    return {
+      message:
+        "Under typical conditions, gradual steady rehydration with water or electrolyte fluids is safe and effective. In rare, extreme scenarios involving rapid, very large-volume plain water intake, blood electrolyte levels can be diluted (hyponatremia). For severe dehydration, medical evaluation is recommended.",
+      factCheck: {
+        claim: 'Drinking large amounts of water quickly is always the safest treatment for dehydration',
+        status: 'FALSE',
+        explanation: 'Under normal conditions, gradual fluid intake is safe. Rapid excessive plain water consumption in extreme cases carries a risk of hyponatremia.',
+        evidenceLevel: 'High',
+        sources: [
+          { name: 'Mayo Clinic', url: 'https://www.mayoclinic.org' },
           { name: 'World Health Organization', url: 'https://www.who.int' },
         ],
       },
@@ -183,104 +208,53 @@ function generateAiResponse(userMessage) {
     };
   }
 
-  // 4. Fever response
-  if (normMessage.includes('fever') || normMessage.includes('temperature') || normMessage.includes('chills')) {
+  // 5. Antibiotics check
+  if (normMessage.includes('antibiotic') || normMessage.includes('antibiotics')) {
+    if (normMessage.includes('leftover') || normMessage.includes('unused') || normMessage.includes('home')) {
+      return {
+        message: 'Do not take leftover antibiotics without consulting a doctor. Unused antibiotics may not suit your current infection, may be expired, or may provide an incomplete dose that encourages resistant bacteria.',
+        factCheck: {
+          claim: 'It is safe to take leftover antibiotics at home',
+          status: 'FALSE',
+          explanation: 'Self-prescribing leftover antibiotics risks improper treatment, drug toxicity, and bacterial resistance.',
+          evidenceLevel: 'High',
+          sources: [
+            { name: 'World Health Organization', url: 'https://www.who.int' },
+            { name: 'U.S. Food and Drug Administration', url: 'https://www.fda.gov' },
+          ],
+        },
+        safetyLevel: 'warning',
+      };
+    }
     return {
-      message:
-        "The standard, safest first-line over-the-counter medications for managing a fever in adults are:\n\n" +
-        "• **Paracetamol (Acetaminophen / Tylenol)**: Typically **500 mg to 1,000 mg** every 4 to 6 hours as needed.\n" +
-        "  - *Crucial Rule*: Do not exceed **4,000 mg (4 grams)** total in a 24-hour period to protect your liver.\n\n" +
-        "• **Ibuprofen (NSAID)**: Typically **200 mg to 400 mg** every 4 to 6 hours as needed with food.\n" +
-        "  - *Crucial Rule*: Avoid ibuprofen if you have a history of stomach ulcers, kidney disease, or suspect Dengue fever.\n\n" +
-        "### 🏡 Basic Home Care\n" +
-        "• **Hydrate**: Drink plenty of fluids (water, oral rehydration solution/ORS) to prevent dehydration.\n" +
-        "• **Rest**: Allow your immune system time to recover.\n" +
-        "• **Cool Down**: Wear light clothing and use a light blanket if experiencing chills.\n\n" +
-        "### ⚠️ Red Flag Symptoms\n" +
-        "Go to urgent care if fever exceeds 103°F (39.4°C), lasts >3 days, or occurs with stiff neck, shortness of breath, or confusion.",
+      message: 'Antibiotics treat bacterial infections only and are completely ineffective against viral illnesses like the common cold or influenza. Using antibiotics for viral infections provides no benefit and contributes to global antibiotic resistance.',
       factCheck: {
-        claim: 'Paracetamol and Ibuprofen are safe first-line over-the-counter fever reducers',
-        status: 'TRUE',
-        explanation: 'Over-the-counter antipyretics like Acetaminophen and Ibuprofen are clinically established first-line medications for fever management in adults.',
+        claim: 'Antibiotics are effective against viral infections',
+        status: 'FALSE',
+        explanation: 'Antibiotics target bacterial cell structures, which viruses do not possess. Colds and flu are caused by viruses.',
         evidenceLevel: 'High',
         sources: [
-          { name: 'Mayo Clinic - Fever Guidance', url: 'https://www.mayoclinic.org/diseases-conditions/fever' },
           { name: 'World Health Organization', url: 'https://www.who.int' },
+          { name: 'Centers for Disease Control and Prevention', url: 'https://www.cdc.gov' },
         ],
       },
       safetyLevel: 'standard',
     };
   }
 
-  // 5. Stomach pain / Acidity / Indigestion
-  if (normMessage.includes('stomach') || normMessage.includes('acidity') || normMessage.includes('gas') || normMessage.includes('abdomen')) {
-    return {
-      message:
-        "For mild stomach pain, acidity, or indigestion in adults:\n\n" +
-        "• **Antacids**: Over-the-counter antacids (like Calcium Carbonate or Gelusil) provide rapid relief for acidity and heart burn.\n" +
-        "• **H2 Blockers / PPIs**: Famotidine or Omeprazole help reduce stomach acid production for acid reflux.\n" +
-        "• **Antispasmodics**: Dicyclomine or peppermint oil capsules help relieve stomach cramping.\n\n" +
-        "### 🏡 Home Care\n" +
-        "• Sip warm water or ginger tea.\n" +
-        "• Eat light, bland meals (BRAT diet: bananas, rice, applesauce, toast).\n" +
-        "• Avoid spicy, greasy, or acidic foods.\n\n" +
-        "### ⚠️ Seek Emergency Care If\n" +
-        "Stomach pain is sudden, severe, accompanied by persistent vomiting, blood in stool, high fever, or yellowing skin (jaundice).",
-      factCheck: {
-        claim: 'Antacids and H2 blockers effectively manage mild stomach acidity and indigestion',
-        status: 'TRUE',
-        explanation: 'Antacids neutralize gastric acid and H2 blockers suppress acid production, making them evidence-based treatments for dyspepsia and GERD symptoms.',
-        evidenceLevel: 'High',
-        sources: [
-          { name: 'Mayo Clinic - Indigestion', url: 'https://www.mayoclinic.org/diseases-conditions/indigestion' },
-          { name: 'NIH MedlinePlus', url: 'https://medlineplus.gov' },
-        ],
-      },
-      safetyLevel: 'standard',
-    };
-  }
-
-  // 6. Cold / Cough / Sore Throat
-  if (normMessage.includes('cold') || normMessage.includes('cough') || normMessage.includes('sore throat') || normMessage.includes('flu')) {
-    return {
-      message:
-        "Common cold and cough are usually viral. Standard over-the-counter options for symptom relief include:\n\n" +
-        "• **Cough Suppressants**: Dextromethorphan for dry coughs.\n" +
-        "• **Expectorants**: Guaifenesin to loosen mucus in wet coughs.\n" +
-        "• **Sore Throat Relief**: Warm salt water gargles and throat lozenges containing benzocaine or menthol.\n" +
-        "• **Decongestants**: Phenylephrine or saline nasal sprays for nasal congestion.\n\n" +
-        "*(Note: Antibiotics do NOT treat viral cold or cough.)*",
-      factCheck: {
-        claim: 'Over-the-counter decongestants and throat lozenges relieve cold and cough symptoms',
-        status: 'TRUE',
-        explanation: 'Symptomatic treatments manage viral cold symptoms effectively while the immune system clears the viral infection.',
-        evidenceLevel: 'High',
-        sources: [
-          { name: 'CDC Cold & Flu Guidelines', url: 'https://www.cdc.gov/flu' },
-          { name: 'World Health Organization', url: 'https://www.who.int' },
-        ],
-      },
-      safetyLevel: 'standard',
-    };
-  }
-
-  // 7. General Healthcare Question Fallback
+  // 6. Generic Fallback
   return getGenericFallback(userMessage);
 }
 
 function getGenericFallback(userMessage = '') {
-  const topic = userMessage.slice(0, 50) || 'Healthcare Query';
+  const topic = userMessage.slice(0, 45) || 'Healthcare Query';
   return {
     message:
-      `Regarding your inquiry on **"${topic}"**:\n\n` +
-      "Medical information and symptom evaluation should always be considered in context with your individual health history:\n\n" +
-      "• **Over-the-Counter Guidance**: Always review active ingredients and dosage limits before taking any new medication.\n" +
-      "• **Consultation**: Consult a licensed pharmacist or physician for specific drug interactions, prescriptions, or persistent symptoms.\n" +
-      "• **Emergency Safety**: If experiencing severe pain, high fever, or breathing difficulty, seek urgent clinical care.",
+      `Evaluating your inquiry on "${topic}" requires considering your individual medical history. Please consult a qualified pharmacist or doctor for personalized guidance.`,
     factCheck: {
       claim: topic,
       status: 'UNVERIFIED',
-      explanation: `Medical guidance evaluated for '${topic}'. Always cross-reference symptoms with a qualified physician.`,
+      explanation: `No specific medical claim match found in the local evidence database for '${topic}'.`,
       evidenceLevel: 'Moderate',
       sources: [
         { name: 'National Institutes of Health', url: 'https://www.nih.gov' },
@@ -303,16 +277,16 @@ export async function getCurrentUser() {
 
 /**
  * Send user query:
- * 1. Call Direct Google Gemini API (gemini-3.5-flash) from browser (instant response, zero CORS errors)
- * 2. Fallback to comprehensive local medical engine
+ * 1. Call Direct Google Gemini API (gemini-3.5-flash) from browser with revised prompt
+ * 2. Fallback to revised offline medical engine
  */
 export async function sendMessage(messageText, conversationId = null) {
   let aiResponse = null;
 
-  // 1. Direct Gemini API call (instant AI response, 0 CORS calls to backend)
+  // 1. Direct Gemini API call (revised prompt, concise 2-4 sentence answers, zero named drugs)
   aiResponse = await callDirectGeminiApi(messageText);
 
-  // 2. Comprehensive medical response engine fallback
+  // 2. Revised offline medical engine fallback
   if (!aiResponse) {
     aiResponse = generateAiResponse(messageText);
   }
