@@ -211,21 +211,28 @@ export default function Register() {
         <div className="bg-white dark:bg-base-850 rounded-2xl border border-base-200 dark:border-base-700 p-8 shadow-card">
           {authError && (
             <motion.div
-              className="mb-4 p-4 rounded-xl bg-danger-50 dark:bg-danger-900/20 border border-danger-200 dark:border-danger-500/20 text-sm text-danger-600 dark:text-danger-400 space-y-2"
+              className="mb-4 p-4 rounded-xl bg-danger-50 dark:bg-danger-900/20 border border-danger-200 dark:border-danger-500/20 text-sm text-danger-600 dark:text-danger-400 space-y-2.5"
               initial={{ opacity: 0, y: -8 }}
               animate={{ opacity: 1, y: 0 }}
               role="alert"
             >
-              <p className="font-medium">{authError}</p>
-              {authError.toLowerCase().includes('already registered') && (
-                <div className="pt-1 flex items-center gap-2">
+              <p className="font-medium leading-relaxed">{authError}</p>
+              {authError.toLowerCase().includes('already exists') && (
+                <div className="pt-1 flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={handleGoogleSignIn}
+                    disabled={isGoogleLoading}
+                    className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-accent-500 hover:bg-accent-600 text-white text-xs font-semibold transition-colors cursor-pointer"
+                  >
+                    Continue with Google →
+                  </button>
                   <Link
                     to="/login"
-                    className="inline-flex items-center px-3 py-1.5 rounded-lg bg-accent-500 hover:bg-accent-600 text-white text-xs font-semibold transition-colors"
+                    className="inline-flex items-center px-3.5 py-2 rounded-xl bg-base-200 dark:bg-base-700 hover:bg-base-300 dark:hover:bg-base-600 text-base-700 dark:text-base-200 text-xs font-semibold transition-colors"
                   >
-                    Sign In Now →
+                    Go to Sign In Page
                   </Link>
-                  <span className="text-xs text-base-500 dark:text-base-400">or use &quot;Continue with Google&quot; below</span>
                 </div>
               )}
             </motion.div>
