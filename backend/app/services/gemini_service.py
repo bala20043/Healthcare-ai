@@ -240,20 +240,36 @@ class GeminiService:
         if any(term in norm_msg or term in lower_msg for term in ["heart pain", "chest pain", "breath", "emergency", "cardiac"]):
             return DEMO_FALLBACKS["emergency"]
 
-        # 3. Symptom / Medication request check (elevated safety + anti-prescribing stance)
-        if ("fever" in norm_msg and any(t in norm_msg for t in ["tablet", "medicine", "pill", "take", "consider", "drug"])) or \
-           any(phrase in norm_msg for phrase in ["what tablet", "which medicine", "medicine for", "tablet for", "what drug", "which pill", "headache medicine", "pain tablet"]):
+        # 3. Fever & Symptom Medication check (Rich Gemini-Level Medical Response)
+        if "fever" in norm_msg or any(phrase in norm_msg for phrase in ["what tablet", "which medicine", "medicine for fever", "tablet for fever"]):
             return {
-                "answer": f"I cannot prescribe or recommend specific medications or tablets for your inquiry regarding '{query_summary}'. Drug selection requires a licensed pharmacist or physician to assess medical history, potential interactions, and exact dosage safely.",
+                "answer": (
+                    "The standard, safest first-line over-the-counter medications for managing a fever in adults are:\n\n"
+                    "• **Paracetamol (Acetaminophen / Tylenol)**: Typically **500 mg to 1,000 mg** every 4 to 6 hours as needed.\n"
+                    "  - *Crucial Rule*: Do not exceed **4,000 mg (4 grams)** total in a 24-hour period to protect your liver. Check other cold & flu syrups so you don't accidentally take extra paracetamol.\n\n"
+                    "• **Ibuprofen (NSAID)**: Typically **200 mg to 400 mg** every 4 to 6 hours as needed, taken with food or milk to protect your stomach.\n"
+                    "  - *Crucial Rule*: Avoid ibuprofen if you have a history of stomach ulcers, kidney disease, or suspect Dengue fever.\n\n"
+                    "*(Note: Children's doses are strictly based on body weight, and aspirin should never be given to children or teenagers due to the risk of Reye's syndrome.)*\n\n"
+                    "### 🏡 Basic Home Care\n"
+                    "• **Hydrate**: Drink plenty of fluids (water, clear soups, ORS) to prevent dehydration.\n"
+                    "• **Rest**: Allow your body time to recover.\n"
+                    "• **Cool Down**: Wear lightweight clothing and use a light blanket if experiencing chills.\n\n"
+                    "### ⚠️ When to Seek Immediate Medical Care\n"
+                    "Go to an urgent care clinic or emergency room if the fever is accompanied by any of these red flag symptoms:\n"
+                    "• High fever (above 103°F / 39.4°C) or lasting longer than 3 days\n"
+                    "• Severe headache, stiff neck, or extreme sensitivity to light\n"
+                    "• Difficulty breathing, shortness of breath, or chest pain\n"
+                    "• Confusion, extreme drowsiness, or persistent vomiting"
+                ),
                 "fact_check": {
-                    "status": "UNVERIFIED",
-                    "claim": f"Medication selection for symptoms: '{query_summary}'",
-                    "explanation": f"Specific drug recommendations for '{query_summary}' fall outside self-treatment guidelines. Medication selection requires a direct clinical evaluation.",
-                    "evidence_level": "MEDIUM"
+                    "status": "TRUE",
+                    "claim": "Paracetamol and Ibuprofen are safe first-line over-the-counter fever reducers",
+                    "explanation": "Over-the-counter antipyretics like Acetaminophen and Ibuprofen are clinically established first-line medications for fever and symptom management in adults when taken within recommended safety limits.",
+                    "evidence_level": "HIGH"
                 },
                 "safety_notice": {
                     "level": "MEDIUM",
-                    "message": "Medication and dosage decisions require professional clinical guidance. Always consult a physician or licensed pharmacist before taking any drug for new or persistent symptoms."
+                    "message": "This guidance is for educational reference. Consult a licensed pharmacist or physician for personal medical advice or persistent symptoms."
                 }
             }
 

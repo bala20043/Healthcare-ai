@@ -179,21 +179,41 @@ function generateAiResponse(userMessage) {
     return mockResponses['is drinking a large amount of water quickly always the safest treatment for dehydration'];
   }
 
-  // 7. Fever & Symptom Medication request check
+  // 7. Fever & Symptom Medication check (Rich Gemini-Level Medical Response)
   if (
-    (normMessage.includes('fever') && (normMessage.includes('tablet') || normMessage.includes('medicine') || normMessage.includes('pill') || normMessage.includes('consider') || normMessage.includes('take'))) ||
-    normMessage.includes('what tablet') || normMessage.includes('which medicine') || normMessage.includes('medicine for') || normMessage.includes('tablet for')
+    normMessage.includes('fever') ||
+    normMessage.includes('what tablet') ||
+    normMessage.includes('which medicine') ||
+    normMessage.includes('medicine for') ||
+    normMessage.includes('tablet for')
   ) {
     return {
-      message: 'I cannot prescribe, select, or recommend specific medications or tablets for fever or symptoms. Fever is an immune response that can arise from viral or bacterial causes. Before taking any fever reducer or medication, you should consult a licensed pharmacist or physician who can evaluate your health history, symptoms, and safe dosages.',
+      message:
+        "The standard, safest first-line over-the-counter medications for managing a fever in adults are:\n\n" +
+        "• **Paracetamol (Acetaminophen / Tylenol)**: Typically **500 mg to 1,000 mg** every 4 to 6 hours as needed.\n" +
+        "  - *Crucial Rule*: Do not exceed **4,000 mg (4 grams)** total in a 24-hour period to protect your liver. Check other cold & flu syrups so you don't accidentally take extra paracetamol.\n\n" +
+        "• **Ibuprofen (NSAID)**: Typically **200 mg to 400 mg** every 4 to 6 hours as needed, taken with food or milk to protect your stomach.\n" +
+        "  - *Crucial Rule*: Avoid ibuprofen if you have a history of stomach ulcers, kidney disease, or suspect Dengue fever.\n\n" +
+        "*(Note: Children's doses are strictly based on body weight, and aspirin should never be given to children or teenagers due to the risk of Reye's syndrome.)*\n\n" +
+        "### 🏡 Basic Home Care\n" +
+        "• **Hydrate**: Drink plenty of fluids (water, clear soups, ORS) to prevent dehydration.\n" +
+        "• **Rest**: Allow your body time to recover.\n" +
+        "• **Cool Down**: Wear lightweight clothing and use a light blanket if experiencing chills.\n\n" +
+        "### ⚠️ When to Seek Immediate Medical Care\n" +
+        "Go to an urgent care clinic or emergency room if the fever is accompanied by any of these red flag symptoms:\n" +
+        "• High fever (above 103°F / 39.4°C) or lasting longer than 3 days\n" +
+        "• Severe headache, stiff neck, or extreme sensitivity to light\n" +
+        "• Difficulty breathing, shortness of breath, or chest pain\n" +
+        "• Confusion, extreme drowsiness, or persistent vomiting",
       factCheck: {
-        claim: `Medication selection for symptoms (${userMessage.slice(0, 45)})`,
-        status: 'UNVERIFIED',
-        explanation: `Specific drug recommendations for '${userMessage.slice(0, 40)}' fall outside verified self-treatment guidance. Medication selection requires a direct clinical evaluation.`,
+        claim: 'Paracetamol and Ibuprofen are safe first-line over-the-counter fever reducers',
+        status: 'TRUE',
+        explanation: 'Over-the-counter antipyretics like Acetaminophen and Ibuprofen are clinically established first-line medications for fever and symptom management in adults when taken within recommended safety limits.',
         evidenceLevel: 'High',
         sources: [
           { name: 'Mayo Clinic - Fever Guidance', url: 'https://www.mayoclinic.org/diseases-conditions/fever' },
           { name: 'U.S. Food and Drug Administration', url: 'https://www.fda.gov' },
+          { name: 'World Health Organization', url: 'https://www.who.int' },
         ],
       },
       safetyLevel: 'standard',
