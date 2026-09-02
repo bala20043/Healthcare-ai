@@ -152,7 +152,7 @@ export default function Sidebar({ isOpen, onClose, onNewChat, onSelectChat, acti
           <motion.aside
             className="hidden md:flex w-64 lg:w-72 shrink-0 border-r border-base-200/60 dark:border-base-800/60 bg-base-50 dark:bg-base-900 h-full overflow-hidden z-20"
             initial={{ width: 0, opacity: 0 }}
-            animate={{ width: undefined, opacity: 1 }}
+            animate={{ width: 288, opacity: 1 }}
             exit={{ width: 0, opacity: 0 }}
             transition={{ duration: 0.2, ease: 'easeInOut' }}
           >

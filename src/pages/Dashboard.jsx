@@ -7,7 +7,7 @@ import { useAuth } from '../context/AuthContext';
 
 export default function Dashboard() {
   const { user, profile } = useAuth();
-  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(true);
   const [activeChat, setActiveChat] = useState(null);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
 
@@ -15,12 +15,10 @@ export default function Dashboard() {
 
   const handleNewChat = () => {
     setActiveChat(null);
-    setSidebarOpen(false);
   };
 
   const handleSelectChat = (chatId) => {
     setActiveChat(chatId);
-    setSidebarOpen(false);
   };
 
   const handleChatCreated = (newChatId) => {
