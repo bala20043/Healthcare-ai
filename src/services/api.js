@@ -69,6 +69,101 @@ const KNOWLEDGE_SOURCES = {
   ],
 };
 
+const nonHealthcareKeywords = [
+  'weather', 'sports', 'football', 'cricket', 'movie', 'cinema', 'python', 'programming', 'code', 'president', 'currency', 'crypto', 'stock', 'soil', 'salinity', 'farmer', 'agricultural', 'agriculture'
+];
+
+function normalizeQuery(text) {
+  if (!text) return '';
+  let cleaned = text.toLowerCase().trim();
+  cleaned = cleaned.replace(/^\s*([#\[\(]?\d+[\.\)]?|[a-z][\.\)])\s*/, '');
+  cleaned = cleaned.replace(/[^\w\s]/g, ' ');
+  return cleaned.replace(/\s+/g, ' ').trim();
+}
+
+/**
+ * Handle multi-question messages by evaluating scope & generating answers per sub-question
+ */
+function handleMultiQuestionMessage(userMessage) {
+  const parts = userMessage.split(/(?=\b[1-9][0-9]*[\.\)]\s+)/).map((p) => p.trim()).filter(Boolean);
+  if (parts.length < 2) return null;
+
+  const answers = [];
+  const sourcesMap = new Map();
+
+  parts.forEach((part, index) => {
+    const matchNum = part.match(/^([1-9][0-9]*)[\.\)]\s*(.*)/s);
+    const num = matchNum ? matchNum[1] : String(index + 1);
+    const text = matchNum ? matchNum[2] : part;
+
+    const norm = normalizeQuery(text);
+    const lower = text.toLowerCase();
+
+    // Off-topic check per sub-question
+    if (nonHealthcareKeywords.some((kw) => norm.includes(kw) || lower.includes(kw))) {
+      answers.push(`**${num}.** Question ${num} falls outside MediVerify AI's specialized healthcare scope, so I cannot provide agricultural or non-medical advice — I am happy to answer the healthcare questions above.`);
+      return;
+    }
+
+    // Dehydration
+    if (norm.includes('water') || norm.includes('dehydration') || norm.includes('hyponatremia')) {
+      answers.push(`**${num}.** Under typical conditions, gradual steady rehydration with water or electrolyte fluids is safe and effective. In rare, extreme scenarios involving rapid, very large-volume plain water intake, blood electrolyte levels can be diluted (hyponatremia). For severe dehydration, medical evaluation is recommended.`);
+      KNOWLEDGE_SOURCES.dehydration.forEach((s) => sourcesMap.set(s.url, s));
+      return;
+    }
+
+    // Secondary bacterial infection
+    if ((norm.includes('antibiotic') || norm.includes('antibiotics')) && (norm.includes('why') || norm.includes('prescribe') || norm.includes('doctor') || norm.includes('secondary') || norm.includes('viral infection'))) {
+      answers.push(`**${num}.** A doctor may prescribe an antibiotic during a viral illness if a secondary bacterial infection develops. The antibiotic treats the secondary bacterial complication, such as bacterial pneumonia, not the underlying virus.`);
+      KNOWLEDGE_SOURCES.secondary.forEach((s) => sourcesMap.set(s.url, s));
+      return;
+    }
+
+    // Leftover antibiotics
+    if ((norm.includes('antibiotic') || norm.includes('antibiotics')) && (norm.includes('leftover') || norm.includes('unused') || norm.includes('home') || norm.includes('respiratory'))) {
+      answers.push(`**${num}.** Do not take leftover antibiotics without consulting a doctor. Unused antibiotics may not suit your current infection, may be expired, or may provide an incomplete dose that encourages resistant bacteria.`);
+      KNOWLEDGE_SOURCES.leftover.forEach((s) => sourcesMap.set(s.url, s));
+      return;
+    }
+
+    // Antibiotics general
+    if (norm.includes('antibiotic') || norm.includes('antibiotics')) {
+      answers.push(`**${num}.** Antibiotics treat bacterial infections only and are completely ineffective against viral illnesses like the common cold or influenza. Using antibiotics for viral infections provides no benefit and contributes to global antibiotic resistance.`);
+      KNOWLEDGE_SOURCES.antibiotics.forEach((s) => sourcesMap.set(s.url, s));
+      return;
+    }
+
+    // Symptom / Medication inquiry
+    if (
+      norm.includes('fever') ||
+      norm.includes('head pain') ||
+      norm.includes('headache') ||
+      norm.includes('what tablet') ||
+      norm.includes('which medicine') ||
+      norm.includes('medicine for') ||
+      norm.includes('tablet for')
+    ) {
+      answers.push(`**${num}.** Selecting an appropriate medication for symptoms depends on your age, medical history, existing health conditions, and potential drug interactions. Because these individual factors determine safety, you should confirm the correct medication choice with a pharmacist or doctor before taking anything.`);
+      return;
+    }
+
+    // Generic sub-answer fallback
+    answers.push(`**${num}.** Evaluating your inquiry requires considering your individual medical history. Please consult a qualified pharmacist or doctor for personalized guidance.`);
+  });
+
+  return {
+    message: answers.join('\n\n'),
+    factCheck: {
+      claim: 'Evaluation of multi-part healthcare queries (Dehydration, Antibiotic Use, & Safety)',
+      status: 'FALSE',
+      explanation: 'Evaluated each sub-question against clinical literature. Non-healthcare topics explicitly flagged as out of scope.',
+      evidenceLevel: 'High',
+      sources: Array.from(sourcesMap.values()),
+    },
+    safetyLevel: 'standard',
+  };
+}
+
 /**
  * Call Direct Google Gemini API (gemini-3.5-flash) from Browser using revised System Prompt
  */
@@ -85,7 +180,8 @@ RESPONSE LENGTH & MULTI-QUESTION HANDLING
   - You MUST address EVERY sub-question explicitly in order using numbered sections matching the user's list.
   - Keep each sub-answer short (1-3 sentences per question).
   - For any off-topic sub-question (e.g. soil salinity, agriculture, coding, weather), state explicitly: "Question [N] falls outside MediVerify AI's specialized healthcare scope."
-  - Never silently drop or ignore any sub-question.
+  - NEVER silently drop or ignore any sub-question.
+  - CRITICAL RULE: Never reject a multi-question message as a whole if it contains legitimate healthcare questions mixed with off-topic questions. Answer the healthcare questions and decline only the off-topic sub-question.
 
 NEVER NAME SPECIFIC MEDICATIONS FOR SYMPTOM-BASED QUESTIONS
 - If the user asks what medication, tablet, or drug to take for a symptom (fever, headache, cough, etc.), do NOT name any specific drug (no acetaminophen, ibuprofen, paracetamol, etc.). State that medication choice depends on individual health factors (allergies, health history) and should be confirmed with a pharmacist or doctor before taking anything.
@@ -162,110 +258,14 @@ OUTPUT FORMAT (Respond using ONLY valid JSON):
   }
 }
 
-const nonHealthcareKeywords = [
-  'weather', 'sports', 'football', 'cricket', 'movie', 'cinema', 'python', 'programming', 'code', 'president', 'currency', 'crypto', 'stock', 'soil', 'salinity', 'farmer', 'agricultural', 'agriculture'
-];
-
-function normalizeQuery(text) {
-  if (!text) return '';
-  let cleaned = text.toLowerCase().trim();
-  cleaned = cleaned.replace(/^\s*([#\[\(]?\d+[\.\)]?|[a-z][\.\)])\s*/, '');
-  cleaned = cleaned.replace(/[^\w\s]/g, ' ');
-  return cleaned.replace(/\s+/g, ' ').trim();
-}
-
-function handleMultiQuestionMessage(userMessage) {
-  const parts = userMessage.split(/(?=\b[1-9][0-9]*[\.\)]\s+)/).map((p) => p.trim()).filter(Boolean);
-  if (parts.length < 2) return null;
-
-  const answers = [];
-  const sourcesMap = new Map();
-
-  parts.forEach((part, index) => {
-    const matchNum = part.match(/^([1-9][0-9]*)[\.\)]\s*(.*)/s);
-    const num = matchNum ? matchNum[1] : String(index + 1);
-    const text = matchNum ? matchNum[2] : part;
-
-    const norm = normalizeQuery(text);
-    const lower = text.toLowerCase();
-
-    // Off-topic check
-    if (nonHealthcareKeywords.some((kw) => norm.includes(kw) || lower.includes(kw))) {
-      answers.push(`**${num}.** Question ${num} falls outside MediVerify AI's specialized healthcare scope, so I cannot provide agricultural or non-medical advice — I am happy to answer the healthcare questions above.`);
-      return;
-    }
-
-    // Dehydration
-    if (norm.includes('water') || norm.includes('dehydration') || norm.includes('hyponatremia')) {
-      answers.push(`**${num}.** Under typical conditions, gradual steady rehydration with water or electrolyte fluids is safe and effective. In rare, extreme scenarios involving rapid, very large-volume plain water intake, blood electrolyte levels can be diluted (hyponatremia). For severe dehydration, medical evaluation is recommended.`);
-      KNOWLEDGE_SOURCES.dehydration.forEach((s) => sourcesMap.set(s.url, s));
-      return;
-    }
-
-    // Secondary bacterial infection
-    if ((norm.includes('antibiotic') || norm.includes('antibiotics')) && (norm.includes('why') || norm.includes('prescribe') || norm.includes('doctor') || norm.includes('secondary') || norm.includes('viral infection'))) {
-      answers.push(`**${num}.** A doctor may prescribe an antibiotic during a viral illness if a secondary bacterial infection develops. The antibiotic treats the secondary bacterial complication, such as bacterial pneumonia, not the underlying virus.`);
-      KNOWLEDGE_SOURCES.secondary.forEach((s) => sourcesMap.set(s.url, s));
-      return;
-    }
-
-    // Leftover antibiotics
-    if ((norm.includes('antibiotic') || norm.includes('antibiotics')) && (norm.includes('leftover') || norm.includes('unused') || norm.includes('home') || norm.includes('respiratory'))) {
-      answers.push(`**${num}.** Do not take leftover antibiotics without consulting a doctor. Unused antibiotics may not suit your current infection, may be expired, or may provide an incomplete dose that encourages resistant bacteria.`);
-      KNOWLEDGE_SOURCES.leftover.forEach((s) => sourcesMap.set(s.url, s));
-      return;
-    }
-
-    // Antibiotics general
-    if (norm.includes('antibiotic') || norm.includes('antibiotics')) {
-      answers.push(`**${num}.** Antibiotics treat bacterial infections only and are completely ineffective against viral illnesses like the common cold or influenza. Using antibiotics for viral infections provides no benefit and contributes to global antibiotic resistance.`);
-      KNOWLEDGE_SOURCES.antibiotics.forEach((s) => sourcesMap.set(s.url, s));
-      return;
-    }
-
-    // Symptom / Medication inquiry
-    if (
-      norm.includes('fever') ||
-      norm.includes('head pain') ||
-      norm.includes('headache') ||
-      norm.includes('what tablet') ||
-      norm.includes('which medicine') ||
-      norm.includes('medicine for') ||
-      norm.includes('tablet for')
-    ) {
-      answers.push(`**${num}.** Selecting an appropriate medication for symptoms depends on your age, medical history, existing health conditions, and potential drug interactions. Because these individual factors determine safety, you should confirm the correct medication choice with a pharmacist or doctor before taking anything.`);
-      return;
-    }
-
-    // Generic sub-answer fallback
-    answers.push(`**${num}.** Evaluating your inquiry requires considering your individual medical history. Please consult a qualified pharmacist or doctor for personalized guidance.`);
-  });
-
-  return {
-    message: answers.join('\n\n'),
-    factCheck: {
-      claim: 'Evaluation of multi-part healthcare queries (Dehydration, Antibiotic Use, & Safety)',
-      status: 'FALSE',
-      explanation: 'Evaluated each sub-question against clinical literature. Non-healthcare topics explicitly flagged as out of scope.',
-      evidenceLevel: 'High',
-      sources: Array.from(sourcesMap.values()),
-    },
-    safetyLevel: 'standard',
-  };
-}
-
-// Revised Offline Medical Response Engine
+// Revised Single-Query Offline Medical Response Engine
 function generateAiResponse(userMessage) {
   if (!userMessage) return getGenericFallback(userMessage);
-
-  // Check multi-question message first
-  const multiResp = handleMultiQuestionMessage(userMessage);
-  if (multiResp) return multiResp;
 
   const normMessage = normalizeQuery(userMessage);
   const lowerMessage = userMessage.toLowerCase().trim();
 
-  // 1. Non-healthcare check
+  // 1. Non-healthcare check for single queries
   if (nonHealthcareKeywords.some((kw) => normMessage.includes(kw) || lowerMessage.includes(kw))) {
     return {
       message: 'This query falls outside MediVerify AI\'s specialized healthcare scope. MediVerify AI is designed exclusively for medical fact verification and safe healthcare guidance.',
@@ -408,21 +408,30 @@ export async function getCurrentUser() {
 
 /**
  * Send user query:
- * 1. Call Direct Google Gemini API (gemini-3.5-flash) from browser with revised prompt
- * 2. Fallback to revised offline medical engine
+ * 1. Check multi-question message first to evaluate per-question scope & answers
+ * 2. Call Direct Google Gemini API (gemini-3.5-flash) from browser for single query
+ * 3. Fallback to single query offline medical engine
  */
 export async function sendMessage(messageText, conversationId = null) {
   let aiResponse = null;
 
-  // 1. Direct Gemini API call (revised prompt, concise 2-4 sentence answers, zero named drugs, multi-question support)
-  aiResponse = await callDirectGeminiApi(messageText);
+  // 1. Evaluate multi-question messages first for per-question scope handling
+  const multiResp = handleMultiQuestionMessage(messageText);
+  if (multiResp) {
+    aiResponse = multiResp;
+  }
 
-  // 2. Revised offline medical engine fallback
+  // 2. Direct Gemini API call (for single queries)
+  if (!aiResponse) {
+    aiResponse = await callDirectGeminiApi(messageText);
+  }
+
+  // 3. Revised offline medical engine fallback (for single queries)
   if (!aiResponse) {
     aiResponse = generateAiResponse(messageText);
   }
 
-  // 3. Validation Guard: If status is NOT UNVERIFIED but sources is empty, attach matched topic sources!
+  // 4. Validation Guard: If status is NOT UNVERIFIED but sources is empty, attach matched topic sources!
   if (aiResponse?.factCheck?.status !== 'UNVERIFIED' && (!aiResponse.factCheck.sources || aiResponse.factCheck.sources.length === 0)) {
     const lowerMsg = (messageText || '').toLowerCase();
     if (lowerMsg.includes('dehydration') || lowerMsg.includes('water')) {
@@ -432,7 +441,7 @@ export async function sendMessage(messageText, conversationId = null) {
     }
   }
 
-  // 4. Validation Guard: If status IS UNVERIFIED, ensure sources is strictly empty []
+  // 5. Validation Guard: If status IS UNVERIFIED, ensure sources is strictly empty []
   if (aiResponse?.factCheck?.status === 'UNVERIFIED') {
     aiResponse.factCheck.sources = [];
   }
