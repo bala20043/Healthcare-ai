@@ -65,12 +65,12 @@ export default function MessageBubble({ message, isUser, timestamp, factCheck, s
           )}
         </div>
 
-        {/* AI disclaimer */}
-        {!isUser && (
+        {/* AI disclaimer (only shown when Safety Warning is not present to avoid triple repetition) */}
+        {!isUser && !safetyLevel && (
           <div className="flex items-center gap-1 px-1">
-            <Info className="w-3 h-3 text-base-400 opacity-50" aria-hidden="true" />
-            <span className="text-[10px] text-base-400 opacity-50">
-              Not medical advice
+            <Info className="w-3 h-3 text-base-400 opacity-40" aria-hidden="true" />
+            <span className="text-[10px] text-base-400 opacity-40">
+              Educational reference only
             </span>
           </div>
         )}

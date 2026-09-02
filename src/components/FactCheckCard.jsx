@@ -109,36 +109,36 @@ export default function FactCheckCard({ factCheck }) {
         </div>
 
         {/* Evidence Level */}
-        {evidenceLevel && (
-          <div>
-            <p className="text-xs font-medium text-base-400 dark:text-base-400 uppercase tracking-wider mb-1">
-              Evidence Level
-            </p>
-            <div className="flex items-center gap-2">
-              <div className="flex gap-1">
-                {[1, 2, 3].map((level) => (
-                  <div
-                    key={level}
-                    className={`w-2 h-6 rounded-full ${
-                      (evidenceLevel === 'High' && level <= 3) ||
-                      (evidenceLevel === 'Moderate' && level <= 2) ||
-                      (evidenceLevel === 'Low' && level <= 1)
-                        ? evidenceLevel === 'High'
-                          ? 'bg-success-500'
-                          : evidenceLevel === 'Moderate'
-                          ? 'bg-warning-500'
-                          : 'bg-danger-500'
-                        : 'bg-base-200 dark:bg-base-700'
-                    }`}
-                  />
-                ))}
+        {evidenceLevel && (() => {
+          const normEv = (evidenceLevel || '').toUpperCase();
+          const labelText = normEv === 'HIGH' ? 'High' : normEv === 'MEDIUM' || normEv === 'MODERATE' ? 'Moderate' : 'Low';
+          const labelColor = normEv === 'HIGH' ? 'text-success-500' : normEv === 'MEDIUM' || normEv === 'MODERATE' ? 'text-warning-500' : 'text-danger-500';
+          const barColor = normEv === 'HIGH' ? 'bg-success-500' : normEv === 'MEDIUM' || normEv === 'MODERATE' ? 'bg-warning-500' : 'bg-danger-500';
+          const activeBars = normEv === 'HIGH' ? 3 : normEv === 'MEDIUM' || normEv === 'MODERATE' ? 2 : 1;
+
+          return (
+            <div>
+              <p className="text-xs font-medium text-base-400 dark:text-base-400 uppercase tracking-wider mb-1">
+                Evidence Level
+              </p>
+              <div className="flex items-center gap-2">
+                <div className="flex gap-1">
+                  {[1, 2, 3].map((level) => (
+                    <div
+                      key={level}
+                      className={`w-2 h-6 rounded-full ${
+                        level <= activeBars ? barColor : 'bg-base-200 dark:bg-base-700'
+                      }`}
+                    />
+                  ))}
+                </div>
+                <span className={`text-sm font-semibold ${labelColor}`}>
+                  {labelText}
+                </span>
               </div>
-              <span className={`text-sm font-semibold ${evidenceLevelColors[evidenceLevel] || 'text-base-400'}`}>
-                {evidenceLevel}
-              </span>
             </div>
-          </div>
-        )}
+          );
+        })()}
 
         {/* Sources */}
         {sources && sources.length > 0 && (

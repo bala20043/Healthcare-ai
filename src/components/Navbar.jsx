@@ -98,15 +98,17 @@ export default function Navbar({ onMenuClick, showMenuButton = false }) {
 
         {/* Right side */}
         <div className="flex items-center gap-2">
-          {/* Language selector placeholder */}
+          {/* Language selector */}
           {user && (
             <button
-              className="hidden sm:flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm text-base-400 hover:text-base-600 dark:hover:text-base-300 hover:bg-base-100 dark:hover:bg-base-800 transition-colors"
-              title="Language selector — coming soon"
-              aria-label="Language selector — coming soon"
+              onClick={() => navigate('/settings')}
+              className="hidden sm:flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm text-base-500 hover:text-base-700 dark:text-base-400 dark:hover:text-base-200 hover:bg-base-100 dark:hover:bg-base-800 transition-colors cursor-pointer border border-transparent hover:border-base-200 dark:hover:border-base-700"
+              title="Language Settings (English)"
+              aria-label="Language selector — click to change in Settings"
             >
-              <Globe className="w-4 h-4" />
-              <span className="text-xs">EN</span>
+              <Globe className="w-4 h-4 text-accent-500" />
+              <span className="text-xs font-semibold">EN</span>
+              <ChevronDown className="w-3 h-3 opacity-60" />
             </button>
           )}
 

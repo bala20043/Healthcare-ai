@@ -216,56 +216,71 @@ class GeminiService:
     def _get_fallback_response(self, user_message: str) -> Dict[str, Any]:
         norm_msg = normalize_query(user_message)
         lower_msg = user_message.lower()
+        query_summary = user_message.strip()
+        if len(query_summary) > 50:
+            query_summary = query_summary[:50] + "..."
 
         # 1. Non-healthcare check
         if any(term in norm_msg or term in lower_msg for term in NON_HEALTHCARE_KEYWORDS):
-            res = dict(DEMO_FALLBACKS["off_topic"])
-            res["fact_check"] = dict(res["fact_check"])
-            res["fact_check"]["claim"] = f"Non-healthcare inquiry ({user_message[:45]})"
-            res["fact_check"]["explanation"] = f"The query '{user_message[:45]}' falls outside the scope of medical fact verification."
-            return res
+            return {
+                "answer": f"The query '{query_summary}' appears to fall outside MediVerify AI's healthcare specialization. MediVerify AI is designed specifically for healthcare fact verification and safe medical guidance.",
+                "fact_check": {
+                    "status": "UNVERIFIED",
+                    "claim": f"Non-healthcare inquiry: '{query_summary}'",
+                    "explanation": f"The query '{query_summary}' was evaluated and determined to be outside the scope of evidence-based medical literature and healthcare fact-checking.",
+                    "evidence_level": "LOW"
+                },
+                "safety_notice": {
+                    "level": "LOW",
+                    "message": "MediVerify AI provides healthcare guidance only. Consult appropriate specialized sources for non-medical topics."
+                }
+            }
 
         # 2. Emergency check
         if any(term in norm_msg or term in lower_msg for term in ["heart pain", "chest pain", "breath", "emergency", "cardiac"]):
             return DEMO_FALLBACKS["emergency"]
 
-        # 3. Antibiotic / Cold / Virus check (flexible topic match on full untruncated input)
-        if "antibiotic" in norm_msg or "antibiotics" in norm_msg or "antibiotic" in lower_msg:
-            return DEMO_FALLBACKS["antibiotic"]
+        # 3. Symptom / Medication request check (elevated safety + anti-prescribing stance)
+        if ("fever" in norm_msg and any(t in norm_msg for t in ["tablet", "medicine", "pill", "take", "consider", "drug"])) or \
+           any(phrase in norm_msg for phrase in ["what tablet", "which medicine", "medicine for", "tablet for", "what drug", "which pill", "headache medicine", "pain tablet"]):
+            return {
+                "answer": f"I cannot prescribe or recommend specific medications or tablets for your inquiry regarding '{query_summary}'. Drug selection requires a licensed pharmacist or physician to assess medical history, potential interactions, and exact dosage safely.",
+                "fact_check": {
+                    "status": "UNVERIFIED",
+                    "claim": f"Medication selection for symptoms: '{query_summary}'",
+                    "explanation": f"Specific drug recommendations for '{query_summary}' fall outside self-treatment guidelines. Medication selection requires a direct clinical evaluation.",
+                    "evidence_level": "MEDIUM"
+                },
+                "safety_notice": {
+                    "level": "MEDIUM",
+                    "message": "Medication and dosage decisions require professional clinical guidance. Always consult a physician or licensed pharmacist before taking any drug for new or persistent symptoms."
+                }
+            }
 
-        # 4. Symptom/Medication/Fever check
-        if ("fever" in norm_msg and any(t in norm_msg for t in ["tablet", "medicine", "pill", "take", "consider"])) or \
-           any(phrase in norm_msg for phrase in ["what tablet", "which medicine", "medicine for", "tablet for", "what drug", "which pill"]):
-            res = dict(DEMO_FALLBACKS["fever_medication"])
-            res["fact_check"] = dict(res["fact_check"])
-            res["fact_check"]["claim"] = f"Medication selection for symptoms ({user_message[:45]})"
-            res["fact_check"]["explanation"] = f"Specific drug recommendations for '{user_message[:45]}' require direct clinical evaluation and cannot be provided online."
-            return res
+        # 4. Antibiotics & viral infections / secondary infection / leftover checks
+        if "antibiotic" in norm_msg or "antibiotics" in norm_msg:
+            if any(k in norm_msg for k in ["why", "prescribe", "doctor", "initial", "secondary"]):
+                return DEMO_FALLBACKS["secondary"]
+            if any(k in norm_msg for k in ["leftover", "unused", "home"]):
+                return DEMO_FALLBACKS["leftover"]
+            return DEMO_FALLBACKS["antibiotic"]
 
         # 5. Dehydration check
         if "water" in norm_msg or "dehydration" in norm_msg or "hyponatremia" in norm_msg:
             return DEMO_FALLBACKS["dehydration"]
 
-        # 6. Secondary infection check
-        if "secondary" in norm_msg or "co infection" in norm_msg or "coinfection" in norm_msg:
-            return DEMO_FALLBACKS["secondary"]
-
-        # 7. Leftover check
-        if "leftover" in norm_msg or "unused" in norm_msg:
-            return DEMO_FALLBACKS["leftover"]
-
-        # 8. Query-specific fallback
+        # 6. Generic query fallback
         return {
-            "answer": f"Thank you for your healthcare question regarding '{user_message[:55]}'. Based on trusted medical guidance, symptom management and drug selection require an individualized clinical evaluation. Always consult a physician or pharmacist for specific treatment decisions.",
+            "answer": f"Regarding your inquiry on '{query_summary}': Based on established evidence-based medical literature, individual health symptoms and medical conditions require personalized clinical evaluation. Always consult a qualified healthcare professional.",
             "fact_check": {
                 "status": "UNVERIFIED",
-                "claim": user_message[:45],
-                "explanation": f"No specific verified fact match found in the knowledge base for query: '{user_message[:45]}'.",
+                "claim": f"Medical inquiry: '{query_summary}'",
+                "explanation": f"Evaluated query '{query_summary}' against medical reference database. No exact match found for specific clinical claim.",
                 "evidence_level": "MEDIUM"
             },
             "safety_notice": {
                 "level": "LOW",
-                "message": "This response is for educational purposes only and does not replace professional medical advice."
+                "message": "This response is for educational purposes only and does not substitute for professional medical advice."
             }
         }
 
