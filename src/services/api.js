@@ -112,15 +112,15 @@ const nonHealthcareKeywords = [
 function normalizeQuery(text) {
   if (!text) return '';
   let cleaned = text.toLowerCase().trim();
-  // Strip leading list numbering or bullet prefix like "1.", "2)", "[1]"
   cleaned = cleaned.replace(/^\s*([#\[\(]?\d+[\.\)]?|[a-z][\.\)])\s*/, '');
-  // Replace punctuation with spaces for clean token matching
   cleaned = cleaned.replace(/[^\w\s]/g, ' ');
   return cleaned.replace(/\s+/g, ' ').trim();
 }
 
 // Generate AI response based on query
 function generateAiResponse(userMessage) {
+  if (!userMessage) return defaultMockResponse;
+
   const normMessage = normalizeQuery(userMessage);
   const lowerMessage = userMessage.toLowerCase().trim();
 
@@ -159,12 +159,27 @@ function generateAiResponse(userMessage) {
     };
   }
 
-  // 3. Antibiotics sample match on full untruncated input
-  if (normMessage.includes('antibiotic') || normMessage.includes('antibiotics')) {
-    return mockResponses['antibiotic'];
+  // 3. Leftover antibiotics check
+  if (normMessage.includes('leftover') || normMessage.includes('unused')) {
+    return mockResponses['should i take leftover antibiotics at home'];
   }
 
-  // 4. Fever & Symptom Medication request check
+  // 4. Secondary antibiotic prescription check
+  if (normMessage.includes('prescribe') || normMessage.includes('doctor') || normMessage.includes('why')) {
+    return mockResponses['why might a doctor prescribe antibiotics to someone who initially has a viral infection'];
+  }
+
+  // 5. General Antibiotic / Viral infection check
+  if (normMessage.includes('antibiotic') || normMessage.includes('antibiotics')) {
+    return mockResponses['are antibiotics effective against viral infections'];
+  }
+
+  // 6. Dehydration & water check
+  if (normMessage.includes('water') || normMessage.includes('dehydration') || normMessage.includes('hyponatremia')) {
+    return mockResponses['is drinking a large amount of water quickly always the safest treatment for dehydration'];
+  }
+
+  // 7. Fever & Symptom Medication request check
   if (
     (normMessage.includes('fever') && (normMessage.includes('tablet') || normMessage.includes('medicine') || normMessage.includes('pill') || normMessage.includes('consider') || normMessage.includes('take'))) ||
     normMessage.includes('what tablet') || normMessage.includes('which medicine') || normMessage.includes('medicine for') || normMessage.includes('tablet for')
@@ -178,21 +193,14 @@ function generateAiResponse(userMessage) {
         evidenceLevel: 'High',
         sources: [
           { name: 'Mayo Clinic - Fever Guidance', url: 'https://www.mayoclinic.org/diseases-conditions/fever' },
-          { name: 'World Health Organization', url: 'https://www.who.int' },
+          { name: 'U.S. Food and Drug Administration', url: 'https://www.fda.gov' },
         ],
       },
-      safetyLevel: 'warning',
+      safetyLevel: 'standard',
     };
   }
 
-  // 5. Sample question matching against full untruncated message
-  for (const [key, value] of Object.entries(mockResponses)) {
-    if (normMessage.includes(key) || lowerMessage.includes(key) || key.includes(normMessage)) {
-      return value;
-    }
-  }
-
-  // 6. Query-specific default fallback
+  // 8. Default fallback guarantee
   return {
     message: `Thank you for your healthcare inquiry regarding '${userMessage.slice(0, 55)}'. Based on evidence-based medical principles, symptom management and drug selection require an individualized clinical evaluation. Always consult a physician or licensed pharmacist for specific healthcare advice.`,
     factCheck: {
@@ -210,23 +218,23 @@ function generateAiResponse(userMessage) {
 }
 
 /**
- * Get current user from Supabase session
+ * Get user auth token if logged in
  */
-async function getCurrentUser() {
-  const { data: { user } } = await supabase.auth.getUser();
-  return user;
+export async function getAuthToken() {
+  const { data } = await supabase.auth.getSession();
+  return data.session?.access_token || null;
 }
 
 /**
- * Get active session token
+ * Get current user profile
  */
-async function getAuthToken() {
-  const { data: { session } } = await supabase.auth.getSession();
-  return session?.access_token || null;
+export async function getCurrentUser() {
+  const { data } = await supabase.auth.getUser();
+  return data.user || null;
 }
 
 /**
- * Send a message to the AI assistant (calls Python FastAPI backend)
+ * Send user query to Backend API or Supabase Fallback
  */
 export async function sendMessage(messageText, conversationId = null) {
   try {
@@ -258,15 +266,15 @@ export async function sendMessage(messageText, conversationId = null) {
       const mappedSafetyLevel = isEmergencyOrHigh ? 'warning' : 'standard';
 
       // Combine sources
-      const sourcesList = (data.sources || []).map((s) => ({
-        name: s.name,
-        url: s.url,
+      const sourcesList = (data.fact_check?.sources || []).map((s) => ({
+        name: s.name || s.organization || 'Medical Source',
+        url: s.url || '#',
       }));
 
       const mappedFactCheck = {
-        claim: data.fact_check?.claim || messageText.slice(0, 40),
-        status: data.fact_check?.status || 'UNVERIFIED',
-        explanation: data.fact_check?.explanation || '',
+        claim: data.fact_check?.claim || messageText.substring(0, 40),
+        status: (data.fact_check?.status || 'UNVERIFIED').toUpperCase(),
+        explanation: data.fact_check?.explanation || 'Evaluated against trusted medical literature.',
         evidenceLevel: evLevel,
         sources: sourcesList.length > 0 ? sourcesList : [
           { name: 'World Health Organization', url: 'https://www.who.int' },
@@ -292,10 +300,10 @@ export async function sendMessage(messageText, conversationId = null) {
   await randomDelay();
   const user = await getCurrentUser();
   let activeConvId = conversationId;
-  const aiResponse = generateAiResponse(messageText);
+  const aiResponse = generateAiResponse(messageText) || defaultMockResponse;
 
   // If user asked about heart/chest pain or severe emergency, trigger warning
-  const lowerMsg = messageText.toLowerCase();
+  const lowerMsg = (messageText || '').toLowerCase();
   if (lowerMsg.includes('chest pain') || lowerMsg.includes('heart pain') || lowerMsg.includes('breath') || lowerMsg.includes('emergency')) {
     aiResponse.safetyLevel = 'warning';
   }
@@ -325,9 +333,9 @@ export async function sendMessage(messageText, conversationId = null) {
           conversation_id: activeConvId,
           user_id: user.id,
           role: 'ai',
-          content: aiResponse.message,
-          fact_check: aiResponse.factCheck,
-          safety_level: aiResponse.safetyLevel,
+          content: aiResponse.message || defaultMockResponse.message,
+          fact_check: aiResponse.factCheck || defaultMockResponse.factCheck,
+          safety_level: aiResponse.safetyLevel || 'standard',
         })
         .select()
         .single();
@@ -340,9 +348,9 @@ export async function sendMessage(messageText, conversationId = null) {
       return {
         id: aiMsgData?.id || crypto.randomUUID(),
         chatId: activeConvId,
-        message: aiResponse.message,
-        factCheck: aiResponse.factCheck,
-        safetyLevel: aiResponse.safetyLevel,
+        message: aiResponse.message || defaultMockResponse.message,
+        factCheck: aiResponse.factCheck || defaultMockResponse.factCheck,
+        safetyLevel: aiResponse.safetyLevel || 'standard',
         timestamp: aiMsgData?.created_at || new Date().toISOString(),
         disclaimer: 'This information is for educational purposes only.',
       };
@@ -352,9 +360,9 @@ export async function sendMessage(messageText, conversationId = null) {
   return {
     id: crypto.randomUUID(),
     chatId: activeConvId || crypto.randomUUID(),
-    message: aiResponse.message,
-    factCheck: aiResponse.factCheck,
-    safetyLevel: aiResponse.safetyLevel,
+    message: aiResponse.message || defaultMockResponse.message,
+    factCheck: aiResponse.factCheck || defaultMockResponse.factCheck,
+    safetyLevel: aiResponse.safetyLevel || 'standard',
     timestamp: new Date().toISOString(),
     disclaimer: 'This information is for educational purposes only.',
   };
@@ -416,48 +424,20 @@ export async function getConversationMessages(conversationId) {
 }
 
 /**
- * Create a new conversation session in Supabase
- */
-export async function createNewChat(title = 'New Conversation') {
-  const user = await getCurrentUser();
-  if (!user) {
-    return {
-      id: crypto.randomUUID(),
-      title,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
-  }
-
-  const { data, error } = await supabase
-    .from('conversations')
-    .insert({
-      user_id: user.id,
-      title: title,
-    })
-    .select()
-    .single();
-
-  if (error) {
-    console.error('Error creating conversation in Supabase:', error);
-    throw error;
-  }
-
-  return {
-    id: data.id,
-    title: data.title,
-    createdAt: data.created_at,
-    updatedAt: data.updated_at,
-  };
-}
-
-/**
- * Delete a specific conversation session from Supabase
+ * Delete a conversation from Supabase
  */
 export async function deleteChat(conversationId) {
   const user = await getCurrentUser();
-  if (!user || !conversationId) return { success: false };
+  if (!user || !conversationId) return;
 
+  // Delete messages first
+  await supabase
+    .from('messages')
+    .delete()
+    .eq('conversation_id', conversationId)
+    .eq('user_id', user.id);
+
+  // Delete conversation
   const { error } = await supabase
     .from('conversations')
     .delete()
@@ -465,19 +445,22 @@ export async function deleteChat(conversationId) {
     .eq('user_id', user.id);
 
   if (error) {
-    console.error('Error deleting conversation in Supabase:', error);
-    return { success: false };
+    console.error('Error deleting conversation:', error);
+    throw error;
   }
-
-  return { success: true };
 }
 
 /**
- * Clear all chat history for the logged in user in Supabase
+ * Clear all chat history for the logged in user
  */
 export async function clearAllChatHistory() {
   const user = await getCurrentUser();
-  if (!user) return { success: false };
+  if (!user) return;
+
+  await supabase
+    .from('messages')
+    .delete()
+    .eq('user_id', user.id);
 
   const { error } = await supabase
     .from('conversations')
@@ -485,9 +468,7 @@ export async function clearAllChatHistory() {
     .eq('user_id', user.id);
 
   if (error) {
-    console.error('Error clearing chat history in Supabase:', error);
-    return { success: false };
+    console.error('Error clearing chat history:', error);
+    throw error;
   }
-
-  return { success: true };
 }
