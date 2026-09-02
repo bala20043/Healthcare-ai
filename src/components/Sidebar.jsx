@@ -144,8 +144,8 @@ export default function Sidebar({ isOpen, onClose, onNewChat, onSelectChat, acti
 
   return (
     <>
-      {/* Desktop sidebar */}
-      <aside className="hidden lg:flex w-72 shrink-0 border-r border-base-200/60 dark:border-base-800/60 bg-base-50 dark:bg-base-900 h-full">
+      {/* Desktop & Tablet sidebar */}
+      <aside className="hidden md:flex w-64 lg:w-72 shrink-0 border-r border-base-200/60 dark:border-base-800/60 bg-base-50 dark:bg-base-900 h-full overflow-hidden">
         {sidebarContent}
       </aside>
 
@@ -154,7 +154,7 @@ export default function Sidebar({ isOpen, onClose, onNewChat, onSelectChat, acti
         {isOpen && (
           <>
             <motion.div
-              className="lg:hidden fixed inset-0 top-16 bg-black/50 z-40"
+              className="md:hidden fixed inset-0 top-16 bg-black/60 z-40 backdrop-blur-xs"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
@@ -162,7 +162,7 @@ export default function Sidebar({ isOpen, onClose, onNewChat, onSelectChat, acti
               aria-hidden="true"
             />
             <motion.div
-              className="lg:hidden fixed left-0 top-16 bottom-0 w-72 z-50 bg-base-50 dark:bg-base-900 border-r border-base-200/60 dark:border-base-800/60 shadow-xl"
+              className="md:hidden fixed left-0 top-16 bottom-0 w-72 z-50 bg-base-50 dark:bg-base-900 border-r border-base-200/60 dark:border-base-800/60 shadow-2xl overflow-hidden"
               initial={{ x: -288 }}
               animate={{ x: 0 }}
               exit={{ x: -288 }}

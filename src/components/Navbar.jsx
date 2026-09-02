@@ -60,7 +60,7 @@ export default function Navbar({ onMenuClick, showMenuButton = false }) {
           {showMenuButton && (
             <button
               onClick={onMenuClick}
-              className="lg:hidden p-2 rounded-lg hover:bg-base-200 dark:hover:bg-base-800 text-base-500 transition-colors"
+              className="md:hidden p-2 rounded-lg hover:bg-base-200 dark:hover:bg-base-800 text-base-500 transition-colors"
               aria-label="Toggle sidebar menu"
             >
               <Menu className="w-5 h-5" />
