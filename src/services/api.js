@@ -299,68 +299,68 @@ export async function getCurrentUser() {
 
 /**
  * Send user query:
- * 1. Try FastAPI backend API (/api/v1/chat)
- * 2. If backend is offline/unreachable, try Direct Google Gemini API (gemini-3.5-flash)
- * 3. If network is offline, fallback to comprehensive local medical engine
+ * 1. Try Direct Google Gemini API (gemini-3.5-flash) first if API Key is available or on Vercel
+ * 2. Try FastAPI backend API (/api/v1/chat)
+ * 3. Fallback to comprehensive local medical engine
  */
 export async function sendMessage(messageText, conversationId = null) {
   let aiResponse = null;
 
-  // 1. Attempt FastAPI backend call first
-  try {
-    const token = await getAuthToken();
-    const headers = token ? { Authorization: `Bearer ${token}` } : {};
+  // 1. Try Direct Google Gemini API first (instant response, zero CORS errors)
+  aiResponse = await callDirectGeminiApi(messageText);
 
-    const response = await apiClient.post(
-      '/api/v1/chat',
-      {
-        message: messageText,
-        conversation_id: conversationId || undefined,
-      },
-      { headers }
-    );
-
-    if (response.data && response.data.success) {
-      const data = response.data;
-      let evLevel = data.fact_check?.evidence_level || 'High';
-      if (evLevel === 'HIGH') evLevel = 'High';
-      if (evLevel === 'MEDIUM') evLevel = 'Moderate';
-      if (evLevel === 'LOW') evLevel = 'Low';
-
-      const safetyNoticeLevel = data.safety_notice?.level;
-      const isEmergencyOrHigh = safetyNoticeLevel === 'EMERGENCY' || safetyNoticeLevel === 'HIGH';
-
-      const sourcesList = (data.fact_check?.sources || []).map((s) => ({
-        name: s.name || s.organization || 'Medical Source',
-        url: s.url || '#',
-      }));
-
-      aiResponse = {
-        message: data.answer || 'Thank you for your healthcare question.',
-        factCheck: {
-          claim: data.fact_check?.claim || messageText.substring(0, 40),
-          status: (data.fact_check?.status || 'UNVERIFIED').toUpperCase(),
-          explanation: data.fact_check?.explanation || 'Evaluated against trusted medical literature.',
-          evidenceLevel: evLevel,
-          sources: sourcesList.length > 0 ? sourcesList : [
-            { name: 'World Health Organization', url: 'https://www.who.int' },
-            { name: 'Mayo Clinic', url: 'https://www.mayoclinic.org' },
-          ],
-        },
-        safetyLevel: isEmergencyOrHigh ? 'warning' : 'standard',
-        chatId: data.conversation_id || conversationId,
-      };
-    }
-  } catch (err) {
-    console.warn('Backend API offline or unreachable, calling Direct Gemini API...');
-  }
-
-  // 2. If backend call failed, call Direct Google Gemini API from browser
+  // 2. If Direct Gemini API wasn't used or failed, try FastAPI backend API
   if (!aiResponse) {
-    aiResponse = await callDirectGeminiApi(messageText);
+    try {
+      const token = await getAuthToken();
+      const headers = token ? { Authorization: `Bearer ${token}` } : {};
+
+      const response = await apiClient.post(
+        '/api/v1/chat',
+        {
+          message: messageText,
+          conversation_id: conversationId || undefined,
+        },
+        { headers }
+      );
+
+      if (response.data && response.data.success) {
+        const data = response.data;
+        let evLevel = data.fact_check?.evidence_level || 'High';
+        if (evLevel === 'HIGH') evLevel = 'High';
+        if (evLevel === 'MEDIUM') evLevel = 'Moderate';
+        if (evLevel === 'LOW') evLevel = 'Low';
+
+        const safetyNoticeLevel = data.safety_notice?.level;
+        const isEmergencyOrHigh = safetyNoticeLevel === 'EMERGENCY' || safetyNoticeLevel === 'HIGH';
+
+        const sourcesList = (data.fact_check?.sources || []).map((s) => ({
+          name: s.name || s.organization || 'Medical Source',
+          url: s.url || '#',
+        }));
+
+        aiResponse = {
+          message: data.answer || 'Thank you for your healthcare question.',
+          factCheck: {
+            claim: data.fact_check?.claim || messageText.substring(0, 40),
+            status: (data.fact_check?.status || 'UNVERIFIED').toUpperCase(),
+            explanation: data.fact_check?.explanation || 'Evaluated against trusted medical literature.',
+            evidenceLevel: evLevel,
+            sources: sourcesList.length > 0 ? sourcesList : [
+              { name: 'World Health Organization', url: 'https://www.who.int' },
+              { name: 'Mayo Clinic', url: 'https://www.mayoclinic.org' },
+            ],
+          },
+          safetyLevel: isEmergencyOrHigh ? 'warning' : 'standard',
+          chatId: data.conversation_id || conversationId,
+        };
+      }
+    } catch (err) {
+      // Backend unavailable
+    }
   }
 
-  // 3. If direct Gemini API call also failed, use comprehensive local medical engine
+  // 3. Fallback to comprehensive local medical engine
   if (!aiResponse) {
     aiResponse = generateAiResponse(messageText);
   }
