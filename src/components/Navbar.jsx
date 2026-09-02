@@ -9,6 +9,7 @@ import {
   Moon,
   Sun,
   Menu,
+  PanelLeft,
   ChevronDown,
   Globe,
 } from 'lucide-react';
@@ -60,10 +61,11 @@ export default function Navbar({ onMenuClick, showMenuButton = false }) {
           {showMenuButton && (
             <button
               onClick={onMenuClick}
-              className="md:hidden p-2 rounded-lg hover:bg-base-200 dark:hover:bg-base-800 text-base-500 transition-colors"
+              className="p-2 rounded-lg hover:bg-base-200 dark:hover:bg-base-800 text-base-500 hover:text-base-700 dark:hover:text-base-200 transition-colors cursor-pointer"
+              title="Toggle sidebar menu"
               aria-label="Toggle sidebar menu"
             >
-              <Menu className="w-5 h-5" />
+              <PanelLeft className="w-5 h-5 text-accent-500" />
             </button>
           )}
 

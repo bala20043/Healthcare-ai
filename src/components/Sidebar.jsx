@@ -6,6 +6,7 @@ import {
   Trash2,
   X,
   MessageCircle,
+  PanelLeftClose,
 } from 'lucide-react';
 import { getChatHistory, deleteChat } from '../services/api';
 import EmptyState from './EmptyState';
@@ -53,33 +54,34 @@ export default function Sidebar({ isOpen, onClose, onNewChat, onSelectChat, acti
   );
 
   const sidebarContent = (
-    <div className="flex flex-col h-full bg-base-50 dark:bg-base-900">
+    <div className="flex flex-col h-full bg-base-50 dark:bg-base-900 w-full overflow-hidden">
       {/* Header */}
-      <div className="p-4 border-b border-base-200/60 dark:border-base-800/60 shrink-0">
+      <div className="p-3.5 border-b border-base-200/60 dark:border-base-800/60 shrink-0 w-full box-border">
         <div className="flex items-center justify-between mb-3">
-          <h2 className="text-xs font-heading font-semibold text-base-500 dark:text-base-400 uppercase tracking-wider">
+          <h2 className="text-xs font-heading font-semibold text-base-500 dark:text-base-400 uppercase tracking-wider truncate">
             Chat History
           </h2>
           <button
             onClick={onClose}
-            className="lg:hidden p-1.5 rounded-lg hover:bg-base-200 dark:hover:bg-base-800 text-base-400 transition-colors"
+            className="p-1.5 rounded-lg hover:bg-base-200 dark:hover:bg-base-800 text-base-400 hover:text-base-600 dark:hover:text-base-200 transition-colors cursor-pointer"
+            title="Close sidebar"
             aria-label="Close sidebar"
           >
-            <X className="w-4 h-4" />
+            <PanelLeftClose className="w-4 h-4" />
           </button>
         </div>
         <button
           onClick={onNewChat}
-          className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-accent-500 hover:bg-accent-600 text-white text-sm font-medium transition-colors duration-200 shadow-glow-sm"
+          className="w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl bg-accent-500 hover:bg-accent-600 text-white text-xs sm:text-sm font-semibold transition-colors duration-200 shadow-glow-sm cursor-pointer"
           aria-label="Start a new chat"
         >
-          <Plus className="w-4 h-4" />
-          New Chat
+          <Plus className="w-4 h-4 shrink-0" />
+          <span className="truncate">New Chat</span>
         </button>
       </div>
 
       {/* Chat list */}
-      <div className="flex-1 overflow-y-auto p-3">
+      <div className="flex-1 overflow-y-auto p-3 space-y-4">
         {loading ? (
           <div className="space-y-2">
             {[1, 2, 3].map((i) => (
@@ -144,12 +146,22 @@ export default function Sidebar({ isOpen, onClose, onNewChat, onSelectChat, acti
 
   return (
     <>
-      {/* Desktop & Tablet sidebar */}
-      <aside className="hidden md:flex w-64 lg:w-72 shrink-0 border-r border-base-200/60 dark:border-base-800/60 bg-base-50 dark:bg-base-900 h-full overflow-hidden">
-        {sidebarContent}
-      </aside>
+      {/* Desktop & Tablet collapsible sidebar */}
+      <AnimatePresence initial={false}>
+        {isOpen && (
+          <motion.aside
+            className="hidden md:flex w-64 lg:w-72 shrink-0 border-r border-base-200/60 dark:border-base-800/60 bg-base-50 dark:bg-base-900 h-full overflow-hidden z-20"
+            initial={{ width: 0, opacity: 0 }}
+            animate={{ width: undefined, opacity: 1 }}
+            exit={{ width: 0, opacity: 0 }}
+            transition={{ duration: 0.2, ease: 'easeInOut' }}
+          >
+            {sidebarContent}
+          </motion.aside>
+        )}
+      </AnimatePresence>
 
-      {/* Mobile overlay */}
+      {/* Mobile drawer overlay */}
       <AnimatePresence>
         {isOpen && (
           <>
@@ -191,10 +203,10 @@ function ChatItem({ chat, isActive, onSelect, onDelete }) {
       aria-label={`Open chat: ${chat.title}`}
     >
       <MessageSquare className="w-4 h-4 shrink-0 opacity-60" aria-hidden="true" />
-      <span className="text-sm truncate flex-1">{chat.title}</span>
+      <span className="text-xs sm:text-sm truncate flex-1">{chat.title}</span>
       <button
         onClick={onDelete}
-        className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-base-200 dark:hover:bg-base-700 text-base-400 hover:text-danger-500 transition-all"
+        className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-base-200 dark:hover:bg-base-700 text-base-400 hover:text-danger-500 transition-all cursor-pointer"
         title="Delete chat"
         aria-label="Delete chat"
       >
