@@ -97,33 +97,33 @@ export default function Landing() {
     <div className="min-h-screen bg-base-50 dark:bg-base-950">
       {/* Navigation */}
       <nav className="fixed top-0 left-0 right-0 z-50 glass-light dark:glass border-b border-base-200/30 dark:border-base-800/30">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-          <Link to="/" className="flex items-center gap-2.5" aria-label="MediVerify AI Home">
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-accent-400 to-accent-600 flex items-center justify-center shadow-glow">
-              <Activity className="w-5 h-5 text-white" />
+        <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+          <Link to="/" className="flex items-center gap-2 shrink-0" aria-label="MediVerify AI Home">
+            <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-gradient-to-br from-accent-400 to-accent-600 flex items-center justify-center shadow-glow shrink-0">
+              <Activity className="w-4.5 h-4.5 sm:w-5 sm:h-5 text-white" />
             </div>
-            <span className="text-lg font-heading font-bold text-base-800 dark:text-base-100">
+            <span className="text-base sm:text-lg font-heading font-bold text-base-800 dark:text-base-100 whitespace-nowrap">
               MediVerify <span className="text-accent-400">AI</span>
             </span>
           </Link>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
             <button
               onClick={toggleTheme}
-              className="p-2 rounded-lg hover:bg-base-200 dark:hover:bg-base-800 text-base-500 transition-colors"
+              className="p-1.5 sm:p-2 rounded-lg hover:bg-base-200 dark:hover:bg-base-800 text-base-500 transition-colors shrink-0"
               aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
             >
-              {theme === 'dark' ? <Sun className="w-4.5 h-4.5" /> : <Moon className="w-4.5 h-4.5" />}
+              {theme === 'dark' ? <Sun className="w-4 sm:w-4.5 h-4 sm:h-4.5" /> : <Moon className="w-4 sm:w-4.5 h-4 sm:h-4.5" />}
             </button>
             <Link
               to="/login"
-              className="px-4 py-2 text-sm font-medium text-base-600 dark:text-base-300 hover:text-base-800 dark:hover:text-base-100 transition-colors"
+              className="px-2.5 py-1.5 sm:px-4 sm:py-2 text-xs sm:text-sm font-semibold text-base-600 dark:text-base-300 hover:text-base-800 dark:hover:text-base-100 transition-colors whitespace-nowrap"
             >
               Sign In
             </Link>
             <Link
               to="/register"
-              className="px-5 py-2.5 bg-accent-500 hover:bg-accent-600 text-white text-sm font-medium rounded-xl transition-colors duration-200 shadow-glow hover:shadow-glow-lg"
+              className="px-3 py-1.5 sm:px-5 sm:py-2.5 bg-accent-500 hover:bg-accent-600 text-white text-xs sm:text-sm font-bold rounded-xl transition-colors duration-200 shadow-glow hover:shadow-glow-lg whitespace-nowrap"
             >
               Get Started
             </Link>

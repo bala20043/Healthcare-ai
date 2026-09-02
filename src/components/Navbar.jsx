@@ -69,11 +69,11 @@ export default function Navbar({ onMenuClick, showMenuButton = false }) {
             </button>
           )}
 
-          <Link to={user ? '/dashboard' : '/'} className="flex items-center gap-2.5 group" aria-label="MediVerify AI Home">
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-accent-400 to-accent-600 flex items-center justify-center shadow-glow group-hover:shadow-glow-lg transition-shadow duration-300">
-              <Activity className="w-5 h-5 text-white" />
+          <Link to={user ? '/dashboard' : '/'} className="flex items-center gap-2 sm:gap-2.5 shrink-0 group" aria-label="MediVerify AI Home">
+            <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-gradient-to-br from-accent-400 to-accent-600 flex items-center justify-center shadow-glow group-hover:shadow-glow-lg transition-shadow duration-300 shrink-0">
+              <Activity className="w-4.5 h-4.5 sm:w-5 sm:h-5 text-white" />
             </div>
-            <span className="text-lg font-heading font-bold text-base-800 dark:text-base-100 hidden sm:block">
+            <span className="text-base sm:text-lg font-heading font-bold text-base-800 dark:text-base-100 whitespace-nowrap">
               MediVerify <span className="text-accent-400">AI</span>
             </span>
           </Link>
