@@ -1,10 +1,10 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { Activity, Mail, Lock, Eye, EyeOff, User, Loader2, CheckCircle2 } from 'lucide-react';
+import { Activity, Mail, Lock, Eye, EyeOff, User, Loader2, CheckCircle2, X, Shield, FileText } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
 const registerSchema = z
@@ -45,12 +45,14 @@ export default function Register() {
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const [authError, setAuthError] = useState('');
   const [success, setSuccess] = useState(false);
+  const [activeModal, setActiveModal] = useState(null); // 'terms' | 'privacy' | null
 
   const {
     register,
     handleSubmit,
     watch,
-    formState: { errors, isValid },
+    setValue,
+    formState: { errors },
   } = useForm({
     resolver: zodResolver(registerSchema),
     mode: 'onChange',
@@ -104,6 +106,11 @@ export default function Register() {
       setAuthError(err.message || 'Google sign-in failed. Please try again.');
       setIsGoogleLoading(false);
     }
+  };
+
+  const handleAcceptModal = () => {
+    setValue('terms', true, { shouldValidate: true });
+    setActiveModal(null);
   };
 
   if (success) {
@@ -319,9 +326,21 @@ export default function Register() {
                 />
                 <span className="text-sm text-base-500 dark:text-base-400 leading-snug">
                   I agree to the{' '}
-                  <Link to="#" className="text-accent-500 hover:text-accent-600 underline">Terms of Service</Link>{' '}
+                  <button
+                    type="button"
+                    onClick={() => setActiveModal('terms')}
+                    className="text-accent-500 hover:text-accent-600 underline font-medium cursor-pointer"
+                  >
+                    Terms of Service
+                  </button>{' '}
                   and{' '}
-                  <Link to="#" className="text-accent-500 hover:text-accent-600 underline">Privacy Policy</Link>
+                  <button
+                    type="button"
+                    onClick={() => setActiveModal('privacy')}
+                    className="text-accent-500 hover:text-accent-600 underline font-medium cursor-pointer"
+                  >
+                    Privacy Policy
+                  </button>
                 </span>
               </label>
               {errors.terms && (
@@ -384,6 +403,135 @@ export default function Register() {
           </Link>
         </p>
       </motion.div>
+
+      {/* Interactive Terms & Privacy Policy Modal */}
+      <AnimatePresence>
+        {activeModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <motion.div
+              className="fixed inset-0 bg-black/60 backdrop-blur-xs"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setActiveModal(null)}
+            />
+
+            <motion.div
+              className="relative w-full max-w-lg bg-white dark:bg-base-850 rounded-2xl p-6 shadow-2xl border border-base-200 dark:border-base-700 z-10 max-h-[85vh] flex flex-col"
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+            >
+              {/* Header */}
+              <div className="flex items-center justify-between pb-4 border-b border-base-200 dark:border-base-700 shrink-0">
+                <div className="flex items-center gap-2.5">
+                  {activeModal === 'terms' ? (
+                    <FileText className="w-5 h-5 text-accent-500" />
+                  ) : (
+                    <Shield className="w-5 h-5 text-accent-500" />
+                  )}
+                  <h3 className="text-lg font-heading font-bold text-base-800 dark:text-base-100">
+                    {activeModal === 'terms' ? 'Terms of Service' : 'Privacy Policy'}
+                  </h3>
+                </div>
+                <button
+                  onClick={() => setActiveModal(null)}
+                  className="p-1 rounded-lg hover:bg-base-100 dark:hover:bg-base-800 text-base-400 hover:text-base-600 dark:hover:text-base-200 transition-colors"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Scrollable Content */}
+              <div className="flex-1 overflow-y-auto py-4 space-y-4 text-sm text-base-600 dark:text-base-300 leading-relaxed pr-2">
+                {activeModal === 'terms' ? (
+                  <>
+                    <p className="font-semibold text-base-800 dark:text-base-100">
+                      Welcome to MediVerify AI. By registering and using our service, you agree to the following Terms of Service:
+                    </p>
+                    <div className="space-y-3">
+                      <div>
+                        <h4 className="font-bold text-accent-500 mb-1">1. Educational Reference Purpose Only</h4>
+                        <p>
+                          MediVerify AI is an artificial intelligence-assisted healthcare information assistant. All answers, fact checks, and explanations are provided strictly for educational and informational reference. MediVerify AI does not provide medical diagnoses, treatment prescriptions, or clinical medical advice.
+                        </p>
+                      </div>
+                      <div>
+                        <h4 className="font-bold text-accent-500 mb-1">2. No Doctor-Patient Relationship</h4>
+                        <p>
+                          Using MediVerify AI does not create a doctor-patient or healthcare provider relationship. Always consult a qualified physician, pharmacist, or healthcare professional regarding personal medical concerns or before starting or stopping any medication.
+                        </p>
+                      </div>
+                      <div>
+                        <h4 className="font-bold text-accent-500 mb-1">3. Emergency Situations</h4>
+                        <p>
+                          MediVerify AI is not an emergency response system. If you or someone around you is experiencing severe symptoms, chest pain, difficulty breathing, or a medical emergency, call 911 (or your local emergency number) immediately.
+                        </p>
+                      </div>
+                      <div>
+                        <h4 className="font-bold text-accent-500 mb-1">4. Acceptable Use</h4>
+                        <p>
+                          You agree to use MediVerify AI responsibly and legally. Automated scraping, malicious query injection, or attempt to compromise service security is strictly prohibited.
+                        </p>
+                      </div>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <p className="font-semibold text-base-800 dark:text-base-100">
+                      Your privacy is essential to us. MediVerify AI is built with privacy-first principles:
+                    </p>
+                    <div className="space-y-3">
+                      <div>
+                        <h4 className="font-bold text-accent-500 mb-1">1. Information We Collect</h4>
+                        <p>
+                          We collect your email address and display name for account authentication and chat history management.
+                        </p>
+                      </div>
+                      <div>
+                        <h4 className="font-bold text-accent-500 mb-1">2. No Personal Health Information (PHI) Sales</h4>
+                        <p>
+                          We never sell, rent, or trade your personal information, conversation history, or medical inquiries to third parties or advertisers.
+                        </p>
+                      </div>
+                      <div>
+                        <h4 className="font-bold text-accent-500 mb-1">3. Data Security & Encryption</h4>
+                        <p>
+                          All communications between your browser, our API backend, and Supabase are encrypted using HTTPS and TLS 1.3 standards.
+                        </p>
+                      </div>
+                      <div>
+                        <h4 className="font-bold text-accent-500 mb-1">4. User Control & Data Deletion</h4>
+                        <p>
+                          You retain full ownership of your data. You can clear your entire conversation history anytime from the Settings page.
+                        </p>
+                      </div>
+                    </div>
+                  </>
+                )}
+              </div>
+
+              {/* Footer Actions */}
+              <div className="pt-4 border-t border-base-200 dark:border-base-700 flex items-center justify-end gap-3 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setActiveModal(null)}
+                  className="px-4 py-2 rounded-xl text-sm font-medium text-base-500 hover:bg-base-100 dark:hover:bg-base-800 transition-colors"
+                >
+                  Close
+                </button>
+                <button
+                  type="button"
+                  onClick={handleAcceptModal}
+                  className="px-5 py-2 rounded-xl bg-accent-500 hover:bg-accent-600 text-white text-sm font-semibold transition-colors"
+                >
+                  I Understand & Agree
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
