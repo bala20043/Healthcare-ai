@@ -9,22 +9,42 @@ export function AuthProvider({ children }) {
   const [session, setSession] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  // Fetch profile data from profiles table
-  const fetchProfile = useCallback(async (userId) => {
+  // Ensure profile row exists in public.profiles table
+  const ensureProfile = useCallback(async (currentUser, fullName = null) => {
+    if (!currentUser) return null;
     try {
-      const { data, error } = await supabase
+      const { data: existing } = await supabase
         .from('profiles')
         .select('*')
-        .eq('id', userId)
+        .eq('id', currentUser.id)
+        .maybeSingle();
+
+      if (existing) return existing;
+
+      const name = fullName || currentUser.user_metadata?.full_name || currentUser.email?.split('@')[0] || 'User';
+      const avatar = currentUser.user_metadata?.avatar_url || null;
+      const provider = currentUser.app_metadata?.provider || 'email';
+
+      const { data: newProfile, error } = await supabase
+        .from('profiles')
+        .upsert({
+          id: currentUser.id,
+          email: currentUser.email,
+          full_name: name,
+          avatar_url: avatar,
+          auth_provider: provider,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        })
+        .select()
         .single();
 
       if (error) {
-        console.error('Error fetching profile:', error.message);
-        return null;
+        console.warn('Automatic profile upsert in public.profiles table:', error.message);
       }
-      return data;
+      return newProfile || { id: currentUser.id, email: currentUser.email, full_name: name };
     } catch (err) {
-      console.error('Profile fetch failed:', err);
+      console.warn('ensureProfile failed:', err);
       return null;
     }
   }, []);
@@ -37,7 +57,7 @@ export function AuthProvider({ children }) {
       setUser(currentUser);
 
       if (currentUser) {
-        const profileData = await fetchProfile(currentUser.id);
+        const profileData = await ensureProfile(currentUser);
         setProfile(profileData);
       }
 
@@ -52,10 +72,7 @@ export function AuthProvider({ children }) {
         setUser(newUser);
 
         if (newUser) {
-          // Small delay to allow the trigger to create the profile row
-          // (especially on first sign-up or Google OAuth)
-          await new Promise((r) => setTimeout(r, 500));
-          const profileData = await fetchProfile(newUser.id);
+          const profileData = await ensureProfile(newUser);
           setProfile(profileData);
         } else {
           setProfile(null);
@@ -66,7 +83,7 @@ export function AuthProvider({ children }) {
     );
 
     return () => subscription.unsubscribe();
-  }, [fetchProfile]);
+  }, [ensureProfile]);
 
   const signUp = async (email, password, fullName) => {
     const { data, error } = await supabase.auth.signUp({
@@ -79,6 +96,9 @@ export function AuthProvider({ children }) {
       },
     });
     if (error) throw error;
+    if (data?.user) {
+      await ensureProfile(data.user, fullName);
+    }
     if (data?.session) {
       setSession(data.session);
       setUser(data.session.user);
@@ -92,6 +112,9 @@ export function AuthProvider({ children }) {
       password,
     });
     if (error) throw error;
+    if (data?.user) {
+      await ensureProfile(data.user);
+    }
     return data;
   };
 
@@ -144,7 +167,7 @@ export function AuthProvider({ children }) {
     signInWithGoogle,
     signOut,
     updateProfile,
-    fetchProfile,
+    ensureProfile,
   };
 
   return (
