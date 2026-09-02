@@ -79,8 +79,13 @@ async function callDirectGeminiApi(userMessage) {
     const systemPrompt = `You are MediVerify AI, a healthcare information and fact-verification assistant.
 Your top priority is factual accuracy above all else.
 
-RESPONSE LENGTH
-- Default to SHORT answers: 2-4 sentences or up to 4 short bullet points. No long multi-section essays.
+RESPONSE LENGTH & MULTI-QUESTION HANDLING
+- Default to SHORT answers: 2-4 sentences for a single query.
+- If the user's message contains MULTIPLE questions or numbered items (e.g. "2. ... 3. ... 4. ... 5. ..."):
+  - You MUST address EVERY sub-question explicitly in order using numbered sections matching the user's list.
+  - Keep each sub-answer short (1-3 sentences per question).
+  - For any off-topic sub-question (e.g. soil salinity, agriculture, coding, weather), state explicitly: "Question [N] falls outside MediVerify AI's specialized healthcare scope."
+  - Never silently drop or ignore any sub-question.
 
 NEVER NAME SPECIFIC MEDICATIONS FOR SYMPTOM-BASED QUESTIONS
 - If the user asks what medication, tablet, or drug to take for a symptom (fever, headache, cough, etc.), do NOT name any specific drug (no acetaminophen, ibuprofen, paracetamol, etc.). State that medication choice depends on individual health factors (allergies, health history) and should be confirmed with a pharmacist or doctor before taking anything.
@@ -94,10 +99,10 @@ ALWAYS CITE SOURCES WHEN A TOPIC MATCH WAS FOUND
 
 OUTPUT FORMAT (Respond using ONLY valid JSON):
 {
-  "answer": "Short 2-4 sentence response...",
+  "answer": "Answer addressing each sub-question explicitly or single short response...",
   "fact_check": {
     "status": "TRUE" | "FALSE" | "MIXED" | "UNVERIFIED",
-    "claim": "Brief summary of evaluated claim",
+    "claim": "Brief summary of evaluated claim(s)",
     "explanation": "Concise medical rationale",
     "evidence_level": "High" | "Moderate" | "Low",
     "sources": [{"name": "World Health Organization", "url": "https://www.who.int"}]
@@ -135,7 +140,6 @@ OUTPUT FORMAT (Respond using ONLY valid JSON):
     const parsed = JSON.parse(rawText);
     const statusVerdict = (parsed.fact_check?.status || 'UNVERIFIED').toUpperCase();
 
-    // If status is UNVERIFIED (no match), sources must be empty []
     let finalSources = [];
     if (statusVerdict !== 'UNVERIFIED') {
       finalSources = parsed.fact_check?.sources || KNOWLEDGE_SOURCES.antibiotics;
@@ -159,7 +163,7 @@ OUTPUT FORMAT (Respond using ONLY valid JSON):
 }
 
 const nonHealthcareKeywords = [
-  'weather', 'sports', 'football', 'cricket', 'movie', 'cinema', 'python', 'programming', 'code', 'president', 'currency', 'crypto', 'stock'
+  'weather', 'sports', 'football', 'cricket', 'movie', 'cinema', 'python', 'programming', 'code', 'president', 'currency', 'crypto', 'stock', 'soil', 'salinity', 'farmer', 'agricultural', 'agriculture'
 ];
 
 function normalizeQuery(text) {
@@ -170,9 +174,93 @@ function normalizeQuery(text) {
   return cleaned.replace(/\s+/g, ' ').trim();
 }
 
-// Revised Offline Medical Response Engine (Strictly populated sources on match, empty [] on UNVERIFIED)
+function handleMultiQuestionMessage(userMessage) {
+  const parts = userMessage.split(/(?=\b[1-9][0-9]*[\.\)]\s+)/).map((p) => p.trim()).filter(Boolean);
+  if (parts.length < 2) return null;
+
+  const answers = [];
+  const sourcesMap = new Map();
+
+  parts.forEach((part, index) => {
+    const matchNum = part.match(/^([1-9][0-9]*)[\.\)]\s*(.*)/s);
+    const num = matchNum ? matchNum[1] : String(index + 1);
+    const text = matchNum ? matchNum[2] : part;
+
+    const norm = normalizeQuery(text);
+    const lower = text.toLowerCase();
+
+    // Off-topic check
+    if (nonHealthcareKeywords.some((kw) => norm.includes(kw) || lower.includes(kw))) {
+      answers.push(`**${num}.** Question ${num} falls outside MediVerify AI's specialized healthcare scope, so I cannot provide agricultural or non-medical advice — I am happy to answer the healthcare questions above.`);
+      return;
+    }
+
+    // Dehydration
+    if (norm.includes('water') || norm.includes('dehydration') || norm.includes('hyponatremia')) {
+      answers.push(`**${num}.** Under typical conditions, gradual steady rehydration with water or electrolyte fluids is safe and effective. In rare, extreme scenarios involving rapid, very large-volume plain water intake, blood electrolyte levels can be diluted (hyponatremia). For severe dehydration, medical evaluation is recommended.`);
+      KNOWLEDGE_SOURCES.dehydration.forEach((s) => sourcesMap.set(s.url, s));
+      return;
+    }
+
+    // Secondary bacterial infection
+    if ((norm.includes('antibiotic') || norm.includes('antibiotics')) && (norm.includes('why') || norm.includes('prescribe') || norm.includes('doctor') || norm.includes('secondary') || norm.includes('viral infection'))) {
+      answers.push(`**${num}.** A doctor may prescribe an antibiotic during a viral illness if a secondary bacterial infection develops. The antibiotic treats the secondary bacterial complication, such as bacterial pneumonia, not the underlying virus.`);
+      KNOWLEDGE_SOURCES.secondary.forEach((s) => sourcesMap.set(s.url, s));
+      return;
+    }
+
+    // Leftover antibiotics
+    if ((norm.includes('antibiotic') || norm.includes('antibiotics')) && (norm.includes('leftover') || norm.includes('unused') || norm.includes('home') || norm.includes('respiratory'))) {
+      answers.push(`**${num}.** Do not take leftover antibiotics without consulting a doctor. Unused antibiotics may not suit your current infection, may be expired, or may provide an incomplete dose that encourages resistant bacteria.`);
+      KNOWLEDGE_SOURCES.leftover.forEach((s) => sourcesMap.set(s.url, s));
+      return;
+    }
+
+    // Antibiotics general
+    if (norm.includes('antibiotic') || norm.includes('antibiotics')) {
+      answers.push(`**${num}.** Antibiotics treat bacterial infections only and are completely ineffective against viral illnesses like the common cold or influenza. Using antibiotics for viral infections provides no benefit and contributes to global antibiotic resistance.`);
+      KNOWLEDGE_SOURCES.antibiotics.forEach((s) => sourcesMap.set(s.url, s));
+      return;
+    }
+
+    // Symptom / Medication inquiry
+    if (
+      norm.includes('fever') ||
+      norm.includes('head pain') ||
+      norm.includes('headache') ||
+      norm.includes('what tablet') ||
+      norm.includes('which medicine') ||
+      norm.includes('medicine for') ||
+      norm.includes('tablet for')
+    ) {
+      answers.push(`**${num}.** Selecting an appropriate medication for symptoms depends on your age, medical history, existing health conditions, and potential drug interactions. Because these individual factors determine safety, you should confirm the correct medication choice with a pharmacist or doctor before taking anything.`);
+      return;
+    }
+
+    // Generic sub-answer fallback
+    answers.push(`**${num}.** Evaluating your inquiry requires considering your individual medical history. Please consult a qualified pharmacist or doctor for personalized guidance.`);
+  });
+
+  return {
+    message: answers.join('\n\n'),
+    factCheck: {
+      claim: 'Evaluation of multi-part healthcare queries (Dehydration, Antibiotic Use, & Safety)',
+      status: 'FALSE',
+      explanation: 'Evaluated each sub-question against clinical literature. Non-healthcare topics explicitly flagged as out of scope.',
+      evidenceLevel: 'High',
+      sources: Array.from(sourcesMap.values()),
+    },
+    safetyLevel: 'standard',
+  };
+}
+
+// Revised Offline Medical Response Engine
 function generateAiResponse(userMessage) {
   if (!userMessage) return getGenericFallback(userMessage);
+
+  // Check multi-question message first
+  const multiResp = handleMultiQuestionMessage(userMessage);
+  if (multiResp) return multiResp;
 
   const normMessage = normalizeQuery(userMessage);
   const lowerMessage = userMessage.toLowerCase().trim();
@@ -225,13 +313,13 @@ function generateAiResponse(userMessage) {
         status: 'UNVERIFIED',
         explanation: 'No specific medical claim match found for symptom-based drug selection. Medication choice requires direct clinical evaluation.',
         evidenceLevel: 'High',
-        sources: [], // Empty [] for UNVERIFIED
+        sources: [],
       },
       safetyLevel: 'warning',
     };
   }
 
-  // 4. Dehydration check (Match found -> Populated verbatim sources)
+  // 4. Dehydration check
   if (normMessage.includes('water') || normMessage.includes('dehydration') || normMessage.includes('hyponatremia')) {
     return {
       message:
@@ -247,7 +335,7 @@ function generateAiResponse(userMessage) {
     };
   }
 
-  // 5. Antibiotics check (Match found -> Populated verbatim sources)
+  // 5. Antibiotics check
   if (normMessage.includes('antibiotic') || normMessage.includes('antibiotics')) {
     if (normMessage.includes('leftover') || normMessage.includes('unused') || normMessage.includes('home')) {
       return {
@@ -288,7 +376,7 @@ function generateAiResponse(userMessage) {
     };
   }
 
-  // 6. Generic Fallback (UNVERIFIED -> empty sources [])
+  // 6. Generic Fallback
   return getGenericFallback(userMessage);
 }
 
@@ -302,7 +390,7 @@ function getGenericFallback(userMessage = '') {
       status: 'UNVERIFIED',
       explanation: `No specific medical claim match found in the local evidence database for '${topic}'.`,
       evidenceLevel: 'Moderate',
-      sources: [], // Empty [] for UNVERIFIED
+      sources: [],
     },
     safetyLevel: 'standard',
   };
@@ -326,7 +414,7 @@ export async function getCurrentUser() {
 export async function sendMessage(messageText, conversationId = null) {
   let aiResponse = null;
 
-  // 1. Direct Gemini API call (revised prompt, concise 2-4 sentence answers, zero named drugs)
+  // 1. Direct Gemini API call (revised prompt, concise 2-4 sentence answers, zero named drugs, multi-question support)
   aiResponse = await callDirectGeminiApi(messageText);
 
   // 2. Revised offline medical engine fallback

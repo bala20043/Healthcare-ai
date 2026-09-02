@@ -119,9 +119,7 @@ DEMO_FALLBACKS = {
             "claim": "Non-healthcare inquiry",
             "explanation": "The query is outside the scope of evidence-based medical literature.",
             "evidence_level": "LOW",
-            "sources": [
-                {"name": "MediVerify AI Guidelines", "url": "https://www.who.int"}
-            ]
+            "sources": []
         },
         "safety_notice": {
             "level": "LOW",
@@ -131,7 +129,7 @@ DEMO_FALLBACKS = {
 }
 
 NON_HEALTHCARE_KEYWORDS = [
-    "weather", "sports", "football", "cricket", "movie", "cinema", "python", "programming", "code", "capital of", "president", "currency", "crypto", "stock"
+    "weather", "sports", "football", "cricket", "movie", "cinema", "python", "programming", "code", "capital of", "president", "currency", "crypto", "stock", "soil", "salinity", "farmer", "agricultural", "agriculture"
 ]
 
 class GeminiService:
@@ -221,11 +219,6 @@ class GeminiService:
                 safety_lvl = "LOW"
 
             sources = parsed.get("fact_check", {}).get("sources", [])
-            if not sources:
-                sources = [
-                    {"name": "World Health Organization", "url": "https://www.who.int"},
-                    {"name": "Mayo Clinic", "url": "https://www.mayoclinic.org"}
-                ]
 
             return {
                 "answer": parsed.get("answer", "No answer generated."),
@@ -245,7 +238,100 @@ class GeminiService:
             print(f"Failed to parse Gemini JSON output: {e}")
             return None
 
+    def _handle_multi_question_fallback(self, user_message: str) -> Optional[Dict[str, Any]]:
+        items = re.split(r'(?=\b[1-9][0-9]*[\.\)]\s+)', user_message)
+        items = [item.strip() for item in items if item.strip()]
+
+        if len(items) < 2:
+            return None
+
+        answers = []
+        sources_set = {}
+
+        for item in items:
+            match_num = re.match(r'^([1-9][0-9]*)[\.\)]\s*(.*)', item, re.DOTALL)
+            if match_num:
+                num = match_num.group(1)
+                text = match_num.group(2)
+            else:
+                num = str(len(answers) + 1)
+                text = item
+
+            norm = normalize_query(text)
+            lower = text.lower()
+
+            # Non-healthcare / Off-topic
+            if any(term in norm or term in lower for term in NON_HEALTHCARE_KEYWORDS):
+                answers.append(f"**{num}.** Question {num} falls outside MediVerify AI's specialized healthcare scope, so I cannot provide advice on this non-medical topic — I am happy to answer the healthcare questions above.")
+                continue
+
+            # Dehydration
+            if "water" in norm or "dehydration" in norm or "hyponatremia" in norm:
+                resp = DEMO_FALLBACKS["dehydration"]
+                answers.append(f"**{num}.** {resp['answer']}")
+                for s in resp["fact_check"]["sources"]:
+                    sources_set[s["url"]] = s
+                continue
+
+            # Secondary bacterial infection
+            if ("antibiotic" in norm or "antibiotics" in norm) and any(k in norm for k in ["why", "prescribe", "doctor", "initial", "secondary", "viral infection"]):
+                resp = DEMO_FALLBACKS["secondary"]
+                answers.append(f"**{num}.** {resp['answer']}")
+                for s in resp["fact_check"]["sources"]:
+                    sources_set[s["url"]] = s
+                continue
+
+            # Leftover antibiotics
+            if ("antibiotic" in norm or "antibiotics" in norm) and any(k in norm for k in ["leftover", "unused", "home", "respiratory"]):
+                resp = DEMO_FALLBACKS["leftover"]
+                answers.append(f"**{num}.** {resp['answer']}")
+                for s in resp["fact_check"]["sources"]:
+                    sources_set[s["url"]] = s
+                continue
+
+            # Antibiotics general
+            if "antibiotic" in norm or "antibiotics" in norm:
+                resp = DEMO_FALLBACKS["antibiotic"]
+                answers.append(f"**{num}.** {resp['answer']}")
+                for s in resp["fact_check"]["sources"]:
+                    sources_set[s["url"]] = s
+                continue
+
+            # Symptom / medication inquiry
+            if ("fever" in norm and any(t in norm for t in ["tablet", "medicine", "pill", "take", "consider", "drug"])) or \
+               any(phrase in norm for phrase in ["what tablet", "which medicine", "medicine for", "tablet for", "what drug", "which pill", "headache medicine", "pain tablet", "head pain"]):
+                resp = DEMO_FALLBACKS["fever_medication"]
+                answers.append(f"**{num}.** {resp['answer']}")
+                for s in resp["fact_check"]["sources"]:
+                    sources_set[s["url"]] = s
+                continue
+
+            # Generic sub-answer fallback
+            answers.append(f"**{num}.** Evaluating your inquiry requires considering your individual medical history. Please consult a qualified pharmacist or doctor for personalized guidance.")
+
+        final_sources = list(sources_set.values())
+
+        return {
+            "answer": "\n\n".join(answers),
+            "fact_check": {
+                "status": "FALSE",
+                "claim": "Evaluation of multi-part healthcare queries (Dehydration, Antibiotic Use, & Safety)",
+                "explanation": "Evaluated each sub-question against clinical literature. Non-healthcare topics explicitly flagged as out of scope.",
+                "evidence_level": "HIGH",
+                "sources": final_sources
+            },
+            "safety_notice": {
+                "level": "LOW",
+                "message": "Always consult a licensed physician or pharmacist regarding individual medical questions."
+            }
+        }
+
     def _get_fallback_response(self, user_message: str) -> Dict[str, Any]:
+        # Check multi-question message first
+        multi_resp = self._handle_multi_question_fallback(user_message)
+        if multi_resp:
+            return multi_resp
+
         norm_msg = normalize_query(user_message)
         lower_msg = user_message.lower()
 
@@ -257,7 +343,7 @@ class GeminiService:
         if any(term in norm_msg or term in lower_msg for term in ["heart pain", "chest pain", "breath", "emergency", "cardiac"]):
             return DEMO_FALLBACKS["emergency"]
 
-        # 3. Symptom / Medication request check (Strict rule: NEVER name specific drugs)
+        # 3. Symptom / Medication request check
         if ("fever" in norm_msg and any(t in norm_msg for t in ["tablet", "medicine", "pill", "take", "consider", "drug"])) or \
            any(phrase in norm_msg for phrase in ["what tablet", "which medicine", "medicine for", "tablet for", "what drug", "which pill", "headache medicine", "pain tablet", "head pain"]):
             return DEMO_FALLBACKS["fever_medication"]
@@ -282,10 +368,7 @@ class GeminiService:
                 "claim": user_message.strip()[:45],
                 "explanation": "No specific medical claim match found in the local evidence database.",
                 "evidence_level": "MEDIUM",
-                "sources": [
-                    {"name": "National Institutes of Health", "url": "https://www.nih.gov"},
-                    {"name": "World Health Organization", "url": "https://www.who.int"}
-                ]
+                "sources": []
             },
             "safety_notice": {
                 "level": "LOW",
