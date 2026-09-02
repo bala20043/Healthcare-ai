@@ -1,0 +1,153 @@
+{
+  "schema_version": 1,
+  "topics": [
+    {
+      "topic": "antibiotics",
+      "keywords": [
+        "antibiotic",
+        "antibiotics",
+        "virus",
+        "viral infection",
+        "bacterial infection",
+        "cold",
+        "flu",
+        "influenza",
+        "amoxicillin",
+        "penicillin",
+        "azithromycin"
+      ],
+      "facts": [
+        "Antibiotics are designed specifically to target and kill bacteria or inhibit bacterial growth.",
+        "Antibiotics have no therapeutic effect against viruses such as the common cold, flu (influenza), or COVID-19.",
+        "Using antibiotics inappropriately for viral illnesses contributes to global antibiotic resistance.",
+        "Self-prescribing leftover antibiotics at home without a healthcare professional's diagnosis can be dangerous."
+      ],
+      "sources": [
+        {
+          "name": "World Health Organization",
+          "organization": "WHO",
+          "url": "https://www.who.int/news-room/fact-sheets/detail/antibiotic-resistance"
+        },
+        {
+          "name": "Centers for Disease Control and Prevention",
+          "organization": "CDC",
+          "url": "https://www.cdc.gov/antibiotic-use/index.html"
+        }
+      ]
+    },
+    {
+      "topic": "dehydration",
+      "keywords": [
+        "dehydration",
+        "dehydrated",
+        "water intoxication",
+        "hyponatremia",
+        "rehydration",
+        "fluid intake",
+        "thirst",
+        "electrolytes",
+        "ors"
+      ],
+      "facts": [
+        "The safest rehydration method depends on the severity and cause of dehydration.",
+        "Drinking excessive amounts of plain water very rapidly can trigger hyponatremia (low blood sodium).",
+        "Mild dehydration is best treated by sipping water or oral rehydration solutions (ORS) gradually.",
+        "Severe dehydration requires urgent professional medical care and potentially intravenous (IV) fluids."
+      ],
+      "sources": [
+        {
+          "name": "Mayo Clinic",
+          "organization": "Mayo Clinic",
+          "url": "https://www.mayoclinic.org/diseases-conditions/dehydration"
+        },
+        {
+          "name": "World Health Organization",
+          "organization": "WHO",
+          "url": "https://www.who.int/health-topics/diarrhoea"
+        }
+      ]
+    },
+    {
+      "topic": "bacterial_co_infection",
+      "keywords": [
+        "secondary infection",
+        "co-infection",
+        "secondary bacterial infection",
+        "bacterial pneumonia",
+        "sinusitis",
+        "superinfection"
+      ],
+      "facts": [
+        "Viral infections can weaken respiratory mucosa and immune defense, increasing susceptibility to secondary bacterial infections.",
+        "Doctors may prescribe antibiotics during a viral illness if a secondary bacterial infection is diagnosed or strongly suspected.",
+        "Antibiotics should strictly be taken according to a licensed physician's evaluation and instructions."
+      ],
+      "sources": [
+        {
+          "name": "British Medical Journal",
+          "organization": "BMJ",
+          "url": "https://www.bmj.com"
+        },
+        {
+          "name": "Centers for Disease Control and Prevention",
+          "organization": "CDC",
+          "url": "https://www.cdc.gov"
+        }
+      ]
+    },
+    {
+      "topic": "leftover_medication",
+      "keywords": [
+        "leftover antibiotics",
+        "unused medication",
+        "expired pills",
+        "old prescription",
+        "self-medicate"
+      ],
+      "facts": [
+        "Taking leftover antibiotics at home is unsafe due to incorrect dosage, incorrect drug spectrum, or drug expiration.",
+        "Incomplete or wrong antibiotic courses foster resistant bacterial strains.",
+        "Patients should never start leftover prescription drugs without direct consultation with a doctor."
+      ],
+      "sources": [
+        {
+          "name": "U.S. Food and Drug Administration",
+          "organization": "FDA",
+          "url": "https://www.fda.gov/drugs/safe-disposal-medicines"
+        }
+      ]
+    },
+    {
+      "topic": "fever_and_symptoms",
+      "keywords": [
+        "fever",
+        "high temperature",
+        "tablet for fever",
+        "medicine for fever",
+        "paracetamol",
+        "acetaminophen",
+        "ibuprofen",
+        "cough medicine",
+        "what tablet",
+        "which medicine"
+      ],
+      "facts": [
+        "Fever is a natural immune response to infection, but specific drug selection depends on individual medical history, age, and underlying cause.",
+        "Healthcare assistants cannot prescribe or recommend specific medications or dosages for symptoms.",
+        "Over-the-counter fever reducers should only be taken following product labeling guidelines or direct advice from a pharmacist or doctor."
+      ],
+      "sources": [
+        {
+          "name": "Mayo Clinic",
+          "organization": "Mayo Clinic",
+          "url": "https://www.mayoclinic.org/diseases-conditions/fever"
+        },
+        {
+          "name": "World Health Organization",
+          "organization": "WHO",
+          "url": "https://www.who.int"
+        }
+      ]
+    }
+  ]
+}

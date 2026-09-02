@@ -1,0 +1,201 @@
+/* ─── Google Fonts ──────────────────────────────────────── */
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600;700&family=Noto+Sans+Tamil:wght@300;400;500;600;700&display=swap');
+
+@import "tailwindcss";
+
+/* ─── Tailwind v4 Theme ─────────────────────────────────── */
+@theme {
+  /* Colors – Dark base palette */
+  --color-base-950: #0B0E14;
+  --color-base-900: #0F1219;
+  --color-base-850: #12161F;
+  --color-base-800: #161B26;
+  --color-base-700: #1E2433;
+  --color-base-600: #2A3144;
+  --color-base-500: #3D4660;
+  --color-base-400: #5A6380;
+  --color-base-300: #8890A6;
+  --color-base-200: #B8BDD0;
+  --color-base-100: #E2E5ED;
+  --color-base-50: #F7F9FB;
+
+  /* Accent – Teal/Cyan */
+  --color-accent-50: #ECFDF5;
+  --color-accent-100: #CCFBEF;
+  --color-accent-200: #99F6E0;
+  --color-accent-300: #5EEAD4;
+  --color-accent-400: #2DD4BF;
+  --color-accent-500: #14B8A6;
+  --color-accent-600: #0D9488;
+  --color-accent-700: #0F766E;
+  --color-accent-800: #115E59;
+  --color-accent-900: #134E4A;
+
+  /* Status Colors */
+  --color-danger-50: #FEF2F2;
+  --color-danger-100: #FEE2E2;
+  --color-danger-400: #F87171;
+  --color-danger-500: #EF4444;
+  --color-danger-600: #DC2626;
+  --color-danger-900: #7F1D1D;
+
+  --color-warning-50: #FFFBEB;
+  --color-warning-100: #FEF3C7;
+  --color-warning-400: #FBBF24;
+  --color-warning-500: #F59E0B;
+  --color-warning-600: #D97706;
+  --color-warning-900: #78350F;
+
+  --color-success-50: #F0FDF4;
+  --color-success-100: #DCFCE7;
+  --color-success-400: #4ADE80;
+  --color-success-500: #22C55E;
+  --color-success-600: #16A34A;
+  --color-success-900: #14532D;
+
+  /* Typography */
+  --font-heading: 'Space Grotesk', 'Noto Sans Tamil', system-ui, sans-serif;
+  --font-body: 'Inter', 'Noto Sans Tamil', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
+
+  /* Shadows */
+  --shadow-glow: 0 0 20px rgba(45, 212, 191, 0.15);
+  --shadow-glow-lg: 0 0 40px rgba(45, 212, 191, 0.2);
+  --shadow-card: 0 4px 24px rgba(0, 0, 0, 0.12);
+  --shadow-card-hover: 0 8px 40px rgba(0, 0, 0, 0.2);
+
+  /* Animation */
+  --animate-fade-in: fade-in 0.5s ease-out;
+  --animate-slide-up: slide-up 0.4s ease-out;
+  --animate-slide-in-left: slide-in-left 0.3s ease-out;
+  --animate-pulse-soft: pulse-soft 2s ease-in-out infinite;
+  --animate-typing: typing 1.4s ease-in-out infinite;
+}
+
+/* ─── Keyframes ─────────────────────────────────────────── */
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slide-up {
+  from { opacity: 0; transform: translateY(16px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slide-in-left {
+  from { opacity: 0; transform: translateX(-16px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes pulse-soft {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+@keyframes typing {
+  0% { opacity: 0.3; }
+  50% { opacity: 1; }
+  100% { opacity: 0.3; }
+}
+
+/* ─── Base Styles ───────────────────────────────────────── */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  font-family: var(--font-body);
+  margin: 0;
+  padding: 0;
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+/* Light mode (default) */
+body {
+  background-color: var(--color-base-50);
+  color: var(--color-base-800);
+}
+
+/* Dark mode */
+.dark body {
+  background-color: var(--color-base-950);
+  color: var(--color-base-100);
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-heading);
+}
+
+/* ─── Custom Scrollbar ──────────────────────────────────── */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--color-base-500);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-base-400);
+}
+
+.dark ::-webkit-scrollbar-thumb {
+  background: var(--color-base-600);
+}
+
+.dark ::-webkit-scrollbar-thumb:hover {
+  background: var(--color-base-500);
+}
+
+/* ─── Glassmorphism Utility ─────────────────────────────── */
+.glass {
+  background: rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.dark .glass {
+  background: rgba(15, 18, 25, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.glass-light {
+  background: rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+.dark .glass-light {
+  background: rgba(15, 18, 25, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+/* ─── Focus Styles (Accessibility) ──────────────────────── */
+*:focus-visible {
+  outline: 2px solid var(--color-accent-400);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* ─── Selection ─────────────────────────────────────────── */
+::selection {
+  background-color: var(--color-accent-400);
+  color: var(--color-base-950);
+}
