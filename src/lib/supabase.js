@@ -1,18 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 
 /**
- * Supabase Client Configuration
- *
- * IMPORTANT: Google OAuth Setup
- * For Google Sign-In to work, you must configure the redirect/site URL
- * in the Supabase Dashboard:
- *   1. Go to Authentication > URL Configuration
- *   2. Set "Site URL" to your deployed URL (e.g., http://localhost:5173 for dev)
- *   3. Add any additional redirect URLs to "Redirect URLs"
- *   4. Enable Google provider under Authentication > Providers > Google
- *   5. Add your Google OAuth Client ID and Secret
- *
- * These are manual dashboard steps outside the codebase.
+ * Supabase Client Configuration with Explicit Session Persistence
  */
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
@@ -27,5 +16,13 @@ if (!supabaseUrl || !supabaseAnonKey) {
 
 export const supabase = createClient(
   supabaseUrl || 'https://placeholder.supabase.co',
-  supabaseAnonKey || 'placeholder-key'
+  supabaseAnonKey || 'placeholder-key',
+  {
+    auth: {
+      persistSession: true,
+      autoRefreshToken: true,
+      detectSessionInUrl: true,
+      storage: typeof window !== 'undefined' ? window.localStorage : undefined,
+    },
+  }
 );
