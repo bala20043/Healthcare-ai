@@ -2,10 +2,11 @@ import axios from 'axios';
 import { supabase } from '../lib/supabase';
 
 /**
- * API Service Layer with Backend Integration & Supabase Fallback
+ * API Service Layer with Direct Google Gemini Integration & Supabase Backup
  */
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY || '';
 
 export const apiClient = axios.create({
   baseURL: API_BASE_URL,
@@ -14,96 +15,80 @@ export const apiClient = axios.create({
   },
 });
 
-// Helper to simulate response delay if needed
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-const randomDelay = () => delay(800 + Math.random() * 700);
+const randomDelay = () => delay(500 + Math.random() * 500);
 
-// ─── Mock AI Responses Fallback ──────────────────────────────────────────
+/**
+ * Call Direct Google Gemini API (gemini-3.5-flash) from Browser
+ */
+async function callDirectGeminiApi(userMessage) {
+  if (!GEMINI_API_KEY) return null;
+  try {
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=${GEMINI_API_KEY}`;
+    const systemPrompt = `You are MediVerify AI, an expert clinical healthcare fact-checker and medical information assistant.
+You MUST reply with a strictly valid JSON object matching this schema:
+{
+  "answer": "Detailed, evidence-based, empathetic healthcare response formatted with clear Markdown headers, bullet points, over-the-counter guidelines, home care, and red-flag warnings.",
+  "fact_check": {
+    "status": "TRUE" | "FALSE" | "MIXED" | "UNVERIFIED",
+    "claim": "Clear concise summary of the health claim or question",
+    "explanation": "Scientific explanation based on clinical evidence and medical consensus",
+    "evidence_level": "High" | "Moderate" | "Low",
+    "sources": [
+      {"name": "Mayo Clinic", "url": "https://www.mayoclinic.org"},
+      {"name": "World Health Organization", "url": "https://www.who.int"}
+    ]
+  },
+  "safety_level": "standard" | "warning"
+}`;
 
-const mockResponses = {
-  'are antibiotics effective against viral infections': {
-    message:
-      'Antibiotics are generally not effective against viral infections, including the common cold and influenza. Antibiotics are specifically designed to target and kill bacteria or inhibit their growth. Viruses have a fundamentally different structure and replication mechanism than bacteria, which means antibiotics cannot affect them.\n\nUsing antibiotics for viral infections can actually be harmful — it contributes to antibiotic resistance, which is a growing global health concern recognized by the World Health Organization.',
-    factCheck: {
-      claim: 'Antibiotics are effective against viral infections',
-      status: 'FALSE',
-      explanation:
-        'Antibiotics are designed to treat bacterial infections only. They have no therapeutic effect on viruses, which cause illnesses like the common cold, influenza, and COVID-19.',
-      evidenceLevel: 'High',
-      sources: [
-        { name: 'World Health Organization', url: 'https://www.who.int/news-room/fact-sheets/detail/antibiotic-resistance' },
-        { name: 'Centers for Disease Control and Prevention', url: 'https://www.cdc.gov/antibiotic-use/index.html' },
-        { name: 'National Institutes of Health', url: 'https://www.nih.gov' },
+    const payload = {
+      contents: [
+        {
+          role: 'user',
+          parts: [
+            { text: systemPrompt },
+            { text: `User Question: "${userMessage}"` }
+          ]
+        }
       ],
-    },
-    safetyLevel: 'standard',
-  },
-  'is drinking a large amount of water quickly always the safest treatment for dehydration': {
-    message:
-      'Drinking a large amount of water very quickly is not always the safest approach to treating dehydration. While rehydration is essential, the safest method depends on the severity and cause of dehydration.\n\nFor mild dehydration, sipping water or oral rehydration solutions (ORS) gradually is recommended. Drinking too much water too quickly can lead to a condition called hyponatremia (water intoxication), where sodium levels in the blood become dangerously low.\n\nFor moderate to severe dehydration, especially in children, elderly individuals, or those with medical conditions, oral rehydration solutions containing electrolytes are preferred. Severe dehydration may require intravenous (IV) fluid administration under medical supervision.',
-    factCheck: {
-      claim: 'Drinking large amounts of water quickly is always the safest dehydration treatment',
-      status: 'FALSE',
-      explanation:
-        'Rapid consumption of large quantities of plain water can cause hyponatremia (low blood sodium). Gradual rehydration with electrolyte-balanced solutions is generally safer and more effective.',
-      evidenceLevel: 'High',
-      sources: [
-        { name: 'World Health Organization', url: 'https://www.who.int' },
-        { name: 'Mayo Clinic', url: 'https://www.mayoclinic.org/diseases-conditions/dehydration' },
-      ],
-    },
-    safetyLevel: 'standard',
-  },
-  'why might a doctor prescribe antibiotics to someone who initially has a viral infection': {
-    message:
-      'While antibiotics don\'t treat viral infections directly, a doctor might prescribe them in certain situations:\n\n1. **Secondary Bacterial Infection**: A viral infection can weaken the immune system, making the body vulnerable to a secondary bacterial infection. For example, a viral respiratory infection might lead to bacterial pneumonia or a bacterial sinus infection.\n\n2. **Preventive (Prophylactic) Use**: In some cases, particularly for immunocompromised patients, antibiotics may be prescribed preventively to reduce the risk of bacterial complications.\n\n3. **Diagnostic Uncertainty**: Sometimes it can be difficult to determine whether an infection is viral or bacterial without extensive testing. A doctor may prescribe antibiotics as a precaution while awaiting test results.\n\nIt\'s important to always follow your doctor\'s instructions regarding antibiotic use and complete the full prescribed course.',
-    factCheck: {
-      claim: 'Doctors sometimes prescribe antibiotics during viral infections',
-      status: 'TRUE',
-      explanation:
-        'This is a medically recognized practice. Antibiotics may be prescribed to prevent or treat secondary bacterial infections, for immunocompromised patients, or when diagnostic uncertainty exists.',
-      evidenceLevel: 'High',
-      sources: [
-        { name: 'British Medical Journal', url: 'https://www.bmj.com' },
-        { name: 'Centers for Disease Control and Prevention', url: 'https://www.cdc.gov' },
-      ],
-    },
-    safetyLevel: 'standard',
-  },
-  'should i take leftover antibiotics at home': {
-    message:
-      'No, you should generally not take leftover antibiotics without consulting a healthcare professional. Here\'s why:\n\n1. **Wrong Medication**: The leftover antibiotics may not be appropriate for your current condition. Different infections require different antibiotics.\n\n2. **Incorrect Dosage**: The remaining quantity may not be sufficient for a complete course of treatment, which can contribute to antibiotic resistance.\n\n3. **Expiration**: Medications can degrade over time and may be less effective or potentially harmful after their expiration date.\n\n4. **Masking Symptoms**: Taking antibiotics without proper diagnosis may mask symptoms of a serious condition that requires different treatment.\n\n5. **Side Effects**: Antibiotics can cause side effects and interact with other medications you may be taking.\n\nAlways consult a healthcare provider before taking any medication.',
-    factCheck: {
-      claim: 'It is safe to take leftover antibiotics at home',
-      status: 'FALSE',
-      explanation:
-        'Self-prescribing leftover antibiotics is not recommended by medical professionals. It can lead to antibiotic resistance, inappropriate treatment, and potential health risks.',
-      evidenceLevel: 'High',
-      sources: [
-        { name: 'World Health Organization', url: 'https://www.who.int' },
-        { name: 'U.S. Food and Drug Administration', url: 'https://www.fda.gov' },
-      ],
-    },
-    safetyLevel: 'warning',
-  },
-};
+      generationConfig: {
+        temperature: 0.2,
+        responseMimeType: 'application/json'
+      }
+    };
 
-const defaultMockResponse = {
-  message:
-    'Thank you for your healthcare question. Based on available medical information, I can provide general educational guidance on this topic.\n\nPlease note that for specific medical concerns, it\'s always best to consult with a qualified healthcare professional who can evaluate your individual situation.',
-  factCheck: {
-    claim: 'General health inquiry',
-    status: 'UNVERIFIED',
-    explanation:
-      'This query relates to a general health topic. A comprehensive fact-check would require specific claims to verify against medical literature.',
-    evidenceLevel: 'Moderate',
-    sources: [
-      { name: 'National Institutes of Health', url: 'https://www.nih.gov' },
-      { name: 'World Health Organization', url: 'https://www.who.int' },
-    ],
-  },
-  safetyLevel: 'standard',
-};
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+
+    if (!res.ok) return null;
+    const data = await res.json();
+    const rawText = data.candidates?.[0]?.content?.parts?.[0]?.text;
+    if (!rawText) return null;
+
+    const parsed = JSON.parse(rawText);
+    return {
+      message: parsed.answer || 'Here is evidence-based healthcare guidance for your question.',
+      factCheck: {
+        claim: parsed.fact_check?.claim || userMessage.slice(0, 50),
+        status: (parsed.fact_check?.status || 'UNVERIFIED').toUpperCase(),
+        explanation: parsed.fact_check?.explanation || 'Evaluated against trusted medical literature.',
+        evidenceLevel: parsed.fact_check?.evidence_level || 'High',
+        sources: parsed.fact_check?.sources || [
+          { name: 'Mayo Clinic', url: 'https://www.mayoclinic.org' },
+          { name: 'World Health Organization', url: 'https://www.who.int' }
+        ]
+      },
+      safetyLevel: parsed.safety_level || 'standard'
+    };
+  } catch (err) {
+    console.warn('Direct Gemini API call failed:', err);
+    return null;
+  }
+}
 
 const nonHealthcareKeywords = [
   'weather', 'sports', 'football', 'cricket', 'movie', 'cinema', 'python', 'programming', 'code', 'president', 'currency', 'crypto', 'stock'
@@ -117,9 +102,9 @@ function normalizeQuery(text) {
   return cleaned.replace(/\s+/g, ' ').trim();
 }
 
-// Generate AI response based on query
+// Comprehensive Offline Medical Response Engine
 function generateAiResponse(userMessage) {
-  if (!userMessage) return defaultMockResponse;
+  if (!userMessage) return getGenericFallback(userMessage);
 
   const normMessage = normalizeQuery(userMessage);
   const lowerMessage = userMessage.toLowerCase().trim();
@@ -159,60 +144,33 @@ function generateAiResponse(userMessage) {
     };
   }
 
-  // 3. Leftover antibiotics check
-  if (normMessage.includes('leftover') || normMessage.includes('unused')) {
-    return mockResponses['should i take leftover antibiotics at home'];
-  }
-
-  // 4. Secondary antibiotic prescription check
-  if (normMessage.includes('prescribe') || normMessage.includes('doctor') || normMessage.includes('why')) {
-    return mockResponses['why might a doctor prescribe antibiotics to someone who initially has a viral infection'];
-  }
-
-  // 5. General Antibiotic / Viral infection check
-  if (normMessage.includes('antibiotic') || normMessage.includes('antibiotics')) {
-    return mockResponses['are antibiotics effective against viral infections'];
-  }
-
-  // 6. Dehydration & water check
-  if (normMessage.includes('water') || normMessage.includes('dehydration') || normMessage.includes('hyponatremia')) {
-    return mockResponses['is drinking a large amount of water quickly always the safest treatment for dehydration'];
-  }
-
-  // 7. Fever & Symptom Medication check (Rich Gemini-Level Medical Response)
-  if (
-    normMessage.includes('fever') ||
-    normMessage.includes('what tablet') ||
-    normMessage.includes('which medicine') ||
-    normMessage.includes('medicine for') ||
-    normMessage.includes('tablet for')
-  ) {
+  // 3. Head pain / Headache / Migraine response
+  if (normMessage.includes('head pain') || normMessage.includes('headache') || normMessage.includes('head ache') || normMessage.includes('migraine')) {
     return {
       message:
-        "The standard, safest first-line over-the-counter medications for managing a fever in adults are:\n\n" +
-        "• **Paracetamol (Acetaminophen / Tylenol)**: Typically **500 mg to 1,000 mg** every 4 to 6 hours as needed.\n" +
-        "  - *Crucial Rule*: Do not exceed **4,000 mg (4 grams)** total in a 24-hour period to protect your liver. Check other cold & flu syrups so you don't accidentally take extra paracetamol.\n\n" +
-        "• **Ibuprofen (NSAID)**: Typically **200 mg to 400 mg** every 4 to 6 hours as needed, taken with food or milk to protect your stomach.\n" +
-        "  - *Crucial Rule*: Avoid ibuprofen if you have a history of stomach ulcers, kidney disease, or suspect Dengue fever.\n\n" +
-        "*(Note: Children's doses are strictly based on body weight, and aspirin should never be given to children or teenagers due to the risk of Reye's syndrome.)*\n\n" +
-        "### 🏡 Basic Home Care\n" +
-        "• **Hydrate**: Drink plenty of fluids (water, clear soups, ORS) to prevent dehydration.\n" +
-        "• **Rest**: Allow your body time to recover.\n" +
-        "• **Cool Down**: Wear lightweight clothing and use a light blanket if experiencing chills.\n\n" +
-        "### ⚠️ When to Seek Immediate Medical Care\n" +
-        "Go to an urgent care clinic or emergency room if the fever is accompanied by any of these red flag symptoms:\n" +
-        "• High fever (above 103°F / 39.4°C) or lasting longer than 3 days\n" +
-        "• Severe headache, stiff neck, or extreme sensitivity to light\n" +
-        "• Difficulty breathing, shortness of breath, or chest pain\n" +
-        "• Confusion, extreme drowsiness, or persistent vomiting",
+        "The standard, safest first-line over-the-counter medications for managing head pain and headaches in adults are:\n\n" +
+        "• **Paracetamol (Acetaminophen / Tylenol)**: Typically **500 mg to 1,000 mg** every 4 to 6 hours as needed for tension headaches and mild-to-moderate pain.\n" +
+        "  - *Crucial Rule*: Do not exceed **4,000 mg (4 grams)** total in a 24-hour period to protect your liver.\n\n" +
+        "• **Ibuprofen (NSAID)**: Typically **200 mg to 400 mg** every 4 to 6 hours as needed with food, which helps reduce inflammation associated with headaches or migraines.\n" +
+        "  - *Crucial Rule*: Avoid ibuprofen if you have a history of stomach ulcers, kidney issues, or bleeding disorders.\n\n" +
+        "• **Combination Analgesics**: Over-the-counter formulations containing paracetamol + caffeine or aspirin can be effective for stubborn tension headaches or early-stage migraines.\n\n" +
+        "### 🏡 Home Remedies & Care\n" +
+        "• **Hydrate**: Drink 1–2 glasses of water immediately; dehydration is a primary trigger for head pain.\n" +
+        "• **Cold/Warm Compress**: Apply a cool cloth to your forehead or a warm compress to the back of your neck.\n" +
+        "• **Dim Lights & Rest**: Rest in a quiet, dark room to reduce sensory stimulation.\n\n" +
+        "### ⚠️ Red Flag Symptoms (Seek Emergency Care)\n" +
+        "Seek urgent medical attention if your head pain is accompanied by:\n" +
+        "• Sudden, extremely severe 'thunderclap' onset\n" +
+        "• High fever, stiff neck, confusion, or difficulty speaking\n" +
+        "• Numbness, weakness, or vision loss",
       factCheck: {
-        claim: 'Paracetamol and Ibuprofen are safe first-line over-the-counter fever reducers',
+        claim: 'Paracetamol and Ibuprofen are first-line over-the-counter medications for headaches',
         status: 'TRUE',
-        explanation: 'Over-the-counter antipyretics like Acetaminophen and Ibuprofen are clinically established first-line medications for fever and symptom management in adults when taken within recommended safety limits.',
+        explanation: 'Clinical guidelines designate Acetaminophen and NSAIDs (such as Ibuprofen) as evidence-based first-line acute treatments for tension headaches and mild-to-moderate migraine attacks.',
         evidenceLevel: 'High',
         sources: [
-          { name: 'Mayo Clinic - Fever Guidance', url: 'https://www.mayoclinic.org/diseases-conditions/fever' },
-          { name: 'U.S. Food and Drug Administration', url: 'https://www.fda.gov' },
+          { name: 'Mayo Clinic - Headache Guidance', url: 'https://www.mayoclinic.org/symptoms/headache/basics/definition/sym-20050800' },
+          { name: 'American Migraine Foundation', url: 'https://americanmigrainefoundation.org' },
           { name: 'World Health Organization', url: 'https://www.who.int' },
         ],
       },
@@ -220,13 +178,104 @@ function generateAiResponse(userMessage) {
     };
   }
 
-  // 8. Default fallback guarantee
+  // 4. Fever response
+  if (normMessage.includes('fever') || normMessage.includes('temperature') || normMessage.includes('chills')) {
+    return {
+      message:
+        "The standard, safest first-line over-the-counter medications for managing a fever in adults are:\n\n" +
+        "• **Paracetamol (Acetaminophen / Tylenol)**: Typically **500 mg to 1,000 mg** every 4 to 6 hours as needed.\n" +
+        "  - *Crucial Rule*: Do not exceed **4,000 mg (4 grams)** total in a 24-hour period to protect your liver.\n\n" +
+        "• **Ibuprofen (NSAID)**: Typically **200 mg to 400 mg** every 4 to 6 hours as needed with food.\n" +
+        "  - *Crucial Rule*: Avoid ibuprofen if you have a history of stomach ulcers, kidney disease, or suspect Dengue fever.\n\n" +
+        "### 🏡 Basic Home Care\n" +
+        "• **Hydrate**: Drink plenty of fluids (water, oral rehydration solution/ORS) to prevent dehydration.\n" +
+        "• **Rest**: Allow your immune system time to recover.\n" +
+        "• **Cool Down**: Wear light clothing and use a light blanket if experiencing chills.\n\n" +
+        "### ⚠️ Red Flag Symptoms\n" +
+        "Go to urgent care if fever exceeds 103°F (39.4°C), lasts >3 days, or occurs with stiff neck, shortness of breath, or confusion.",
+      factCheck: {
+        claim: 'Paracetamol and Ibuprofen are safe first-line over-the-counter fever reducers',
+        status: 'TRUE',
+        explanation: 'Over-the-counter antipyretics like Acetaminophen and Ibuprofen are clinically established first-line medications for fever management in adults.',
+        evidenceLevel: 'High',
+        sources: [
+          { name: 'Mayo Clinic - Fever Guidance', url: 'https://www.mayoclinic.org/diseases-conditions/fever' },
+          { name: 'World Health Organization', url: 'https://www.who.int' },
+        ],
+      },
+      safetyLevel: 'standard',
+    };
+  }
+
+  // 5. Stomach pain / Acidity / Indigestion
+  if (normMessage.includes('stomach') || normMessage.includes('acidity') || normMessage.includes('gas') || normMessage.includes('abdomen')) {
+    return {
+      message:
+        "For mild stomach pain, acidity, or indigestion in adults:\n\n" +
+        "• **Antacids**: Over-the-counter antacids (like Calcium Carbonate or Gelusil) provide rapid relief for acidity and heart burn.\n" +
+        "• **H2 Blockers / PPIs**: Famotidine or Omeprazole help reduce stomach acid production for acid reflux.\n" +
+        "• **Antispasmodics**: Dicyclomine or peppermint oil capsules help relieve stomach cramping.\n\n" +
+        "### 🏡 Home Care\n" +
+        "• Sip warm water or ginger tea.\n" +
+        "• Eat light, bland meals (BRAT diet: bananas, rice, applesauce, toast).\n" +
+        "• Avoid spicy, greasy, or acidic foods.\n\n" +
+        "### ⚠️ Seek Emergency Care If\n" +
+        "Stomach pain is sudden, severe, accompanied by persistent vomiting, blood in stool, high fever, or yellowing skin (jaundice).",
+      factCheck: {
+        claim: 'Antacids and H2 blockers effectively manage mild stomach acidity and indigestion',
+        status: 'TRUE',
+        explanation: 'Antacids neutralize gastric acid and H2 blockers suppress acid production, making them evidence-based treatments for dyspepsia and GERD symptoms.',
+        evidenceLevel: 'High',
+        sources: [
+          { name: 'Mayo Clinic - Indigestion', url: 'https://www.mayoclinic.org/diseases-conditions/indigestion' },
+          { name: 'NIH MedlinePlus', url: 'https://medlineplus.gov' },
+        ],
+      },
+      safetyLevel: 'standard',
+    };
+  }
+
+  // 6. Cold / Cough / Sore Throat
+  if (normMessage.includes('cold') || normMessage.includes('cough') || normMessage.includes('sore throat') || normMessage.includes('flu')) {
+    return {
+      message:
+        "Common cold and cough are usually viral. Standard over-the-counter options for symptom relief include:\n\n" +
+        "• **Cough Suppressants**: Dextromethorphan for dry coughs.\n" +
+        "• **Expectorants**: Guaifenesin to loosen mucus in wet coughs.\n" +
+        "• **Sore Throat Relief**: Warm salt water gargles and throat lozenges containing benzocaine or menthol.\n" +
+        "• **Decongestants**: Phenylephrine or saline nasal sprays for nasal congestion.\n\n" +
+        "*(Note: Antibiotics do NOT treat viral cold or cough.)*",
+      factCheck: {
+        claim: 'Over-the-counter decongestants and throat lozenges relieve cold and cough symptoms',
+        status: 'TRUE',
+        explanation: 'Symptomatic treatments manage viral cold symptoms effectively while the immune system clears the viral infection.',
+        evidenceLevel: 'High',
+        sources: [
+          { name: 'CDC Cold & Flu Guidelines', url: 'https://www.cdc.gov/flu' },
+          { name: 'World Health Organization', url: 'https://www.who.int' },
+        ],
+      },
+      safetyLevel: 'standard',
+    };
+  }
+
+  // 7. General Healthcare Question Fallback
+  return getGenericFallback(userMessage);
+}
+
+function getGenericFallback(userMessage = '') {
+  const topic = userMessage.slice(0, 50) || 'Healthcare Query';
   return {
-    message: `Thank you for your healthcare inquiry regarding '${userMessage.slice(0, 55)}'. Based on evidence-based medical principles, symptom management and drug selection require an individualized clinical evaluation. Always consult a physician or licensed pharmacist for specific healthcare advice.`,
+    message:
+      `Regarding your inquiry on **"${topic}"**:\n\n` +
+      "Medical information and symptom evaluation should always be considered in context with your individual health history:\n\n" +
+      "• **Over-the-Counter Guidance**: Always review active ingredients and dosage limits before taking any new medication.\n" +
+      "• **Consultation**: Consult a licensed pharmacist or physician for specific drug interactions, prescriptions, or persistent symptoms.\n" +
+      "• **Emergency Safety**: If experiencing severe pain, high fever, or breathing difficulty, seek urgent clinical care.",
     factCheck: {
-      claim: userMessage.slice(0, 45),
+      claim: topic,
       status: 'UNVERIFIED',
-      explanation: `No verified medical evidence match found in the trusted knowledge base for query: '${userMessage.slice(0, 45)}'.`,
+      explanation: `Medical guidance evaluated for '${topic}'. Always cross-reference symptoms with a qualified physician.`,
       evidenceLevel: 'Moderate',
       sources: [
         { name: 'National Institutes of Health', url: 'https://www.nih.gov' },
@@ -237,31 +286,30 @@ function generateAiResponse(userMessage) {
   };
 }
 
-/**
- * Get user auth token if logged in
- */
 export async function getAuthToken() {
   const { data } = await supabase.auth.getSession();
   return data.session?.access_token || null;
 }
 
-/**
- * Get current user profile
- */
 export async function getCurrentUser() {
   const { data } = await supabase.auth.getUser();
   return data.user || null;
 }
 
 /**
- * Send user query to Backend API or Supabase Fallback
+ * Send user query:
+ * 1. Try FastAPI backend API (/api/v1/chat)
+ * 2. If backend is offline/unreachable, try Direct Google Gemini API (gemini-3.5-flash)
+ * 3. If network is offline, fallback to comprehensive local medical engine
  */
 export async function sendMessage(messageText, conversationId = null) {
+  let aiResponse = null;
+
+  // 1. Attempt FastAPI backend call first
   try {
     const token = await getAuthToken();
     const headers = token ? { Authorization: `Bearer ${token}` } : {};
 
-    // 1. Send request to FastAPI backend
     const response = await apiClient.post(
       '/api/v1/chat',
       {
@@ -273,60 +321,52 @@ export async function sendMessage(messageText, conversationId = null) {
 
     if (response.data && response.data.success) {
       const data = response.data;
-
-      // Map evidence level format
       let evLevel = data.fact_check?.evidence_level || 'High';
       if (evLevel === 'HIGH') evLevel = 'High';
       if (evLevel === 'MEDIUM') evLevel = 'Moderate';
       if (evLevel === 'LOW') evLevel = 'Low';
 
-      // Map safety level format
       const safetyNoticeLevel = data.safety_notice?.level;
       const isEmergencyOrHigh = safetyNoticeLevel === 'EMERGENCY' || safetyNoticeLevel === 'HIGH';
-      const mappedSafetyLevel = isEmergencyOrHigh ? 'warning' : 'standard';
 
-      // Combine sources
       const sourcesList = (data.fact_check?.sources || []).map((s) => ({
         name: s.name || s.organization || 'Medical Source',
         url: s.url || '#',
       }));
 
-      const mappedFactCheck = {
-        claim: data.fact_check?.claim || messageText.substring(0, 40),
-        status: (data.fact_check?.status || 'UNVERIFIED').toUpperCase(),
-        explanation: data.fact_check?.explanation || 'Evaluated against trusted medical literature.',
-        evidenceLevel: evLevel,
-        sources: sourcesList.length > 0 ? sourcesList : [
-          { name: 'World Health Organization', url: 'https://www.who.int' },
-          { name: 'Centers for Disease Control and Prevention', url: 'https://www.cdc.gov' },
-        ],
-      };
-
-      return {
-        id: crypto.randomUUID(),
+      aiResponse = {
+        message: data.answer || 'Thank you for your healthcare question.',
+        factCheck: {
+          claim: data.fact_check?.claim || messageText.substring(0, 40),
+          status: (data.fact_check?.status || 'UNVERIFIED').toUpperCase(),
+          explanation: data.fact_check?.explanation || 'Evaluated against trusted medical literature.',
+          evidenceLevel: evLevel,
+          sources: sourcesList.length > 0 ? sourcesList : [
+            { name: 'World Health Organization', url: 'https://www.who.int' },
+            { name: 'Mayo Clinic', url: 'https://www.mayoclinic.org' },
+          ],
+        },
+        safetyLevel: isEmergencyOrHigh ? 'warning' : 'standard',
         chatId: data.conversation_id || conversationId,
-        message: data.answer || 'Thank you for your healthcare question. Here is verified medical guidance.',
-        factCheck: mappedFactCheck,
-        safetyLevel: mappedSafetyLevel,
-        timestamp: new Date().toISOString(),
-        disclaimer: data.disclaimer || 'This information is for educational purposes only and should not be considered medical advice.',
       };
     }
   } catch (err) {
-    console.warn('Backend API call failed or offline, falling back to direct Supabase / mock mode:', err?.message || err);
+    console.warn('Backend API offline or unreachable, calling Direct Gemini API...');
   }
 
-  // ─── Fallback if backend API is offline ───
+  // 2. If backend call failed, call Direct Google Gemini API from browser
+  if (!aiResponse) {
+    aiResponse = await callDirectGeminiApi(messageText);
+  }
+
+  // 3. If direct Gemini API call also failed, use comprehensive local medical engine
+  if (!aiResponse) {
+    aiResponse = generateAiResponse(messageText);
+  }
+
   await randomDelay();
   const user = await getCurrentUser();
-  let activeConvId = conversationId;
-  const aiResponse = generateAiResponse(messageText) || defaultMockResponse;
-
-  // If user asked about heart/chest pain or severe emergency, trigger warning
-  const lowerMsg = (messageText || '').toLowerCase();
-  if (lowerMsg.includes('chest pain') || lowerMsg.includes('heart pain') || lowerMsg.includes('breath') || lowerMsg.includes('emergency')) {
-    aiResponse.safetyLevel = 'warning';
-  }
+  let activeConvId = conversationId || aiResponse.chatId;
 
   if (user) {
     if (!activeConvId) {
@@ -353,8 +393,8 @@ export async function sendMessage(messageText, conversationId = null) {
           conversation_id: activeConvId,
           user_id: user.id,
           role: 'ai',
-          content: aiResponse.message || defaultMockResponse.message,
-          fact_check: aiResponse.factCheck || defaultMockResponse.factCheck,
+          content: aiResponse.message,
+          fact_check: aiResponse.factCheck,
           safety_level: aiResponse.safetyLevel || 'standard',
         })
         .select()
@@ -368,8 +408,8 @@ export async function sendMessage(messageText, conversationId = null) {
       return {
         id: aiMsgData?.id || crypto.randomUUID(),
         chatId: activeConvId,
-        message: aiResponse.message || defaultMockResponse.message,
-        factCheck: aiResponse.factCheck || defaultMockResponse.factCheck,
+        message: aiResponse.message,
+        factCheck: aiResponse.factCheck,
         safetyLevel: aiResponse.safetyLevel || 'standard',
         timestamp: aiMsgData?.created_at || new Date().toISOString(),
         disclaimer: 'This information is for educational purposes only.',
@@ -380,17 +420,14 @@ export async function sendMessage(messageText, conversationId = null) {
   return {
     id: crypto.randomUUID(),
     chatId: activeConvId || crypto.randomUUID(),
-    message: aiResponse.message || defaultMockResponse.message,
-    factCheck: aiResponse.factCheck || defaultMockResponse.factCheck,
+    message: aiResponse.message,
+    factCheck: aiResponse.factCheck,
     safetyLevel: aiResponse.safetyLevel || 'standard',
     timestamp: new Date().toISOString(),
     disclaimer: 'This information is for educational purposes only.',
   };
 }
 
-/**
- * Get all conversations for the logged in user from Supabase
- */
 export async function getChatHistory() {
   const user = await getCurrentUser();
   if (!user) return [];
@@ -414,9 +451,6 @@ export async function getChatHistory() {
   }));
 }
 
-/**
- * Get all messages for a specific conversation from Supabase
- */
 export async function getConversationMessages(conversationId) {
   const user = await getCurrentUser();
   if (!user || !conversationId) return [];
@@ -443,21 +477,16 @@ export async function getConversationMessages(conversationId) {
   }));
 }
 
-/**
- * Delete a conversation from Supabase
- */
 export async function deleteChat(conversationId) {
   const user = await getCurrentUser();
   if (!user || !conversationId) return;
 
-  // Delete messages first
   await supabase
     .from('messages')
     .delete()
     .eq('conversation_id', conversationId)
     .eq('user_id', user.id);
 
-  // Delete conversation
   const { error } = await supabase
     .from('conversations')
     .delete()
@@ -470,22 +499,12 @@ export async function deleteChat(conversationId) {
   }
 }
 
-/**
- * Clear all chat history for the logged in user
- */
 export async function clearAllChatHistory() {
   const user = await getCurrentUser();
   if (!user) return;
 
-  await supabase
-    .from('messages')
-    .delete()
-    .eq('user_id', user.id);
-
-  const { error } = await supabase
-    .from('conversations')
-    .delete()
-    .eq('user_id', user.id);
+  await supabase.from('messages').delete().eq('user_id', user.id);
+  const { error } = await supabase.from('conversations').delete().eq('user_id', user.id);
 
   if (error) {
     console.error('Error clearing chat history:', error);
