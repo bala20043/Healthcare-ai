@@ -10,6 +10,7 @@ const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY || '';
 
 export const apiClient = axios.create({
   baseURL: API_BASE_URL,
+  timeout: 4000,
   headers: {
     'Content-Type': 'application/json',
   },
