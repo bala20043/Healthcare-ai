@@ -1,16 +1,17 @@
 from typing import List, Optional, Literal
 from pydantic import BaseModel, Field
 
+class MedicalSource(BaseModel):
+    name: str = Field(..., description="Name of the medical publication or organization")
+    organization: str = Field(..., description="Organization name (e.g., WHO, CDC)")
+    url: str = Field(..., description="Reference URL")
+
 class FactCheckResult(BaseModel):
     status: Literal["TRUE", "FALSE", "MIXED", "UNVERIFIED"] = Field(..., description="Fact check classification status")
     claim: str = Field(..., description="The user claim or health query topic being evaluated")
     explanation: str = Field(..., description="Detailed medical explanation supporting the status")
     evidence_level: Literal["HIGH", "MEDIUM", "LOW"] = Field(..., description="Level of supporting medical literature evidence")
-
-class MedicalSource(BaseModel):
-    name: str = Field(..., description="Name of the medical publication or organization")
-    organization: str = Field(..., description="Organization name (e.g., WHO, CDC)")
-    url: str = Field(..., description="Reference URL")
+    sources: List[MedicalSource] = Field(default_factory=list, description="Verbatim medical sources from knowledge base")
 
 class SafetyNotice(BaseModel):
     level: Literal["LOW", "MEDIUM", "HIGH", "EMERGENCY"] = Field(..., description="Safety assessment level")

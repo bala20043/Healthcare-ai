@@ -88,15 +88,23 @@ async def chat_endpoint(
             message=ai_raw["safety_notice"]["message"]
         )
 
-    # 5. Build Fact Check Result
+    # 5. Build Fact Check Result with Verbatim Sources
     fact_check_data = ai_raw.get("fact_check", {})
-    
-    # If no facts matched and AI was UNVERIFIED, keep UNVERIFIED
+    status_verdict = fact_check_data.get("status", "UNVERIFIED")
+
+    # When status is UNVERIFIED (no match), sources must be empty []
+    if status_verdict == "UNVERIFIED":
+        final_sources = []
+    else:
+        # Otherwise, populate exact sources from knowledge base
+        final_sources = retrieved_sources
+
     fact_check_res = FactCheckResult(
-        status=fact_check_data.get("status", "UNVERIFIED"),
+        status=status_verdict,
         claim=fact_check_data.get("claim", user_message[:50]),
         explanation=fact_check_data.get("explanation", "Verified against medical knowledge base."),
-        evidence_level=fact_check_data.get("evidence_level", "HIGH")
+        evidence_level=fact_check_data.get("evidence_level", "HIGH"),
+        sources=final_sources
     )
 
     # 6. Save to Supabase if authenticated
@@ -117,7 +125,7 @@ async def chat_endpoint(
             role="ai",
             content=ai_raw["answer"],
             fact_check=fact_check_res.model_dump(),
-            sources=[s.model_dump() for s in retrieved_sources],
+            sources=[s.model_dump() for s in final_sources],
             safety_level=final_safety.level,
             user_jwt=user_jwt
         )
@@ -130,7 +138,7 @@ async def chat_endpoint(
         conversation_id=conversation_id,
         answer=ai_raw["answer"],
         fact_check=fact_check_res,
-        sources=retrieved_sources,
+        sources=final_sources,
         safety_notice=final_safety,
         disclaimer="This information is for educational purposes and does not replace professional medical advice."
     )
