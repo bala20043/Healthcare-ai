@@ -193,12 +193,23 @@ export default function Register() {
         <div className="bg-white dark:bg-base-850 rounded-2xl border border-base-200 dark:border-base-700 p-8 shadow-card">
           {authError && (
             <motion.div
-              className="mb-4 p-3 rounded-xl bg-danger-50 dark:bg-danger-900/20 border border-danger-200 dark:border-danger-500/20 text-sm text-danger-600 dark:text-danger-400"
+              className="mb-4 p-4 rounded-xl bg-danger-50 dark:bg-danger-900/20 border border-danger-200 dark:border-danger-500/20 text-sm text-danger-600 dark:text-danger-400 space-y-2"
               initial={{ opacity: 0, y: -8 }}
               animate={{ opacity: 1, y: 0 }}
               role="alert"
             >
-              {authError}
+              <p className="font-medium">{authError}</p>
+              {authError.toLowerCase().includes('already registered') && (
+                <div className="pt-1 flex items-center gap-2">
+                  <Link
+                    to="/login"
+                    className="inline-flex items-center px-3 py-1.5 rounded-lg bg-accent-500 hover:bg-accent-600 text-white text-xs font-semibold transition-colors"
+                  >
+                    Sign In Now →
+                  </Link>
+                  <span className="text-xs text-base-500 dark:text-base-400">or use &quot;Continue with Google&quot; below</span>
+                </div>
+              )}
             </motion.div>
           )}
 
