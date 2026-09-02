@@ -69,6 +69,14 @@ const KNOWLEDGE_SOURCES = {
   ],
 };
 
+const GREETING_KEYWORDS = [
+  'hi', 'hello', 'hey', 'thanks', 'thank you', 'ok', 'okay', 'bye', 'good morning', 'good evening', 'good afternoon', 'how are you', 'who are you', 'help'
+];
+
+const AMBIGUOUS_HEALTH_TERMS = [
+  'fever', 'headache', 'cough', 'cold', 'pain', 'stomach', 'nausea', 'vomiting', 'rash', 'dizzy'
+];
+
 const nonHealthcareKeywords = [
   'weather', 'sports', 'football', 'cricket', 'movie', 'cinema', 'python', 'programming', 'code', 'president', 'currency', 'crypto', 'stock', 'soil', 'salinity', 'farmer', 'agricultural', 'agriculture'
 ];
@@ -174,6 +182,14 @@ async function callDirectGeminiApi(userMessage) {
     const systemPrompt = `You are MediVerify AI, a healthcare information and fact-verification assistant.
 Your top priority is factual accuracy above all else.
 
+GREETINGS, SMALL TALK & AMBIGUOUS INPUTS:
+- If the user's message is a plain greeting or small talk ("hi", "hello", "thanks", "ok", "bye"):
+  - Respond with a friendly conversational greeting: "Hi! I'm MediVerify AI — ask me any healthcare question or claim you would like verified."
+  - Set fact_check to null. Do NOT treat greetings as medical claims.
+- If the user's message is a single ambiguous health term (e.g. "fever", "headache", "cough"):
+  - Respond with a brief clarifying question: "Could you tell me a bit more about your question regarding fever? For example, are you asking about fever management, symptoms, or when to seek medical care?"
+  - Set fact_check to null.
+
 RESPONSE LENGTH & MULTI-QUESTION HANDLING
 - Default to SHORT answers: 2-4 sentences for a single query.
 - If the user's message contains MULTIPLE questions or numbered items (e.g. "2. ... 3. ... 4. ... 5. ..."):
@@ -181,7 +197,6 @@ RESPONSE LENGTH & MULTI-QUESTION HANDLING
   - Keep each sub-answer short (1-3 sentences per question).
   - For any off-topic sub-question (e.g. soil salinity, agriculture, coding, weather), state explicitly: "Question [N] falls outside MediVerify AI's specialized healthcare scope."
   - NEVER silently drop or ignore any sub-question.
-  - CRITICAL RULE: Never reject a multi-question message as a whole if it contains legitimate healthcare questions mixed with off-topic questions. Answer the healthcare questions and decline only the off-topic sub-question.
 
 NEVER NAME SPECIFIC MEDICATIONS FOR SYMPTOM-BASED QUESTIONS
 - If the user asks what medication, tablet, or drug to take for a symptom (fever, headache, cough, etc.), do NOT name any specific drug (no acetaminophen, ibuprofen, paracetamol, etc.). State that medication choice depends on individual health factors (allergies, health history) and should be confirmed with a pharmacist or doctor before taking anything.
@@ -202,7 +217,7 @@ OUTPUT FORMAT (Respond using ONLY valid JSON):
     "explanation": "Concise medical rationale",
     "evidence_level": "High" | "Moderate" | "Low",
     "sources": [{"name": "World Health Organization", "url": "https://www.who.int"}]
-  },
+  } | null,
   "safety_level": "standard" | "warning"
 }`;
 
@@ -234,22 +249,27 @@ OUTPUT FORMAT (Respond using ONLY valid JSON):
     if (!rawText) return null;
 
     const parsed = JSON.parse(rawText);
-    const statusVerdict = (parsed.fact_check?.status || 'UNVERIFIED').toUpperCase();
-
-    let finalSources = [];
-    if (statusVerdict !== 'UNVERIFIED') {
-      finalSources = parsed.fact_check?.sources || KNOWLEDGE_SOURCES.antibiotics;
+    
+    // Check if fact_check exists and has a claim
+    let fcObj = null;
+    if (parsed.fact_check && parsed.fact_check.claim) {
+      const statusVerdict = (parsed.fact_check?.status || 'UNVERIFIED').toUpperCase();
+      let finalSources = [];
+      if (statusVerdict !== 'UNVERIFIED') {
+        finalSources = parsed.fact_check?.sources || KNOWLEDGE_SOURCES.antibiotics;
+      }
+      fcObj = {
+        claim: parsed.fact_check.claim,
+        status: statusVerdict,
+        explanation: parsed.fact_check.explanation || 'Evaluated against medical literature.',
+        evidenceLevel: parsed.fact_check.evidence_level || 'High',
+        sources: finalSources
+      };
     }
 
     return {
       message: parsed.answer || 'Here is evidence-based healthcare guidance for your question.',
-      factCheck: {
-        claim: parsed.fact_check?.claim || userMessage.slice(0, 50),
-        status: statusVerdict,
-        explanation: parsed.fact_check?.explanation || 'Evaluated against trusted medical literature.',
-        evidenceLevel: parsed.fact_check?.evidence_level || 'High',
-        sources: finalSources
-      },
+      factCheck: fcObj,
       safetyLevel: parsed.safety_level || 'standard'
     };
   } catch (err) {
@@ -262,25 +282,41 @@ OUTPUT FORMAT (Respond using ONLY valid JSON):
 function generateAiResponse(userMessage) {
   if (!userMessage) return getGenericFallback(userMessage);
 
-  const normMessage = normalizeQuery(userMessage);
-  const lowerMessage = userMessage.toLowerCase().trim();
+  const normClean = userMessage.toLowerCase().trim().replace(/[^\w\s]/g, '');
 
-  // 1. Non-healthcare check for single queries
-  if (nonHealthcareKeywords.some((kw) => normMessage.includes(kw) || lowerMessage.includes(kw))) {
+  // 1. Greetings & Small Talk
+  if (GREETING_KEYWORDS.includes(normClean) || !normClean) {
     return {
-      message: 'This query falls outside MediVerify AI\'s specialized healthcare scope. MediVerify AI is designed exclusively for medical fact verification and safe healthcare guidance.',
-      factCheck: {
-        claim: `Non-healthcare inquiry (${userMessage.slice(0, 45)})`,
-        status: 'UNVERIFIED',
-        explanation: 'The query is outside the scope of evidence-based medical literature.',
-        evidenceLevel: 'Low',
-        sources: [],
-      },
+      message: "Hi! I'm MediVerify AI — ask me any healthcare question or claim you would like verified.",
+      factCheck: null,
       safetyLevel: 'standard',
     };
   }
 
-  // 2. Emergency check
+  // 2. Ambiguous Single-Word / Short Health Term
+  const words = normClean.split(/\s+/).filter(Boolean);
+  if (words.length <= 2 && AMBIGUOUS_HEALTH_TERMS.includes(normClean)) {
+    const term = userMessage.trim();
+    return {
+      message: `Could you tell me a bit more about your question regarding ${term}? For example, are you asking about ${term} management, symptoms, or when to seek medical care?`,
+      factCheck: null,
+      safetyLevel: 'standard',
+    };
+  }
+
+  const normMessage = normalizeQuery(userMessage);
+  const lowerMessage = userMessage.toLowerCase().trim();
+
+  // 3. Non-healthcare check for single queries
+  if (nonHealthcareKeywords.some((kw) => normMessage.includes(kw) || lowerMessage.includes(kw))) {
+    return {
+      message: 'This query falls outside MediVerify AI\'s specialized healthcare scope. MediVerify AI is designed exclusively for medical fact verification and safe healthcare guidance.',
+      factCheck: null,
+      safetyLevel: 'standard',
+    };
+  }
+
+  // 4. Emergency check
   if (normMessage.includes('chest pain') || normMessage.includes('heart pain') || normMessage.includes('breath') || normMessage.includes('emergency')) {
     return {
       message: 'Chest pain, heart pain, or difficulty breathing require immediate medical evaluation. These symptoms can indicate serious cardiac or pulmonary conditions. Do not attempt self-treatment or delay emergency care.',
@@ -295,7 +331,7 @@ function generateAiResponse(userMessage) {
     };
   }
 
-  // 3. Symptom / Medication inquiry (Strict rule: NEVER name specific drugs & UNVERIFIED sources stay empty [])
+  // 5. Symptom / Medication inquiry (Strict rule: NEVER name specific drugs & UNVERIFIED sources stay empty [])
   if (
     normMessage.includes('fever') ||
     normMessage.includes('head pain') ||
@@ -319,7 +355,7 @@ function generateAiResponse(userMessage) {
     };
   }
 
-  // 4. Dehydration check
+  // 6. Dehydration check
   if (normMessage.includes('water') || normMessage.includes('dehydration') || normMessage.includes('hyponatremia')) {
     return {
       message:
@@ -335,7 +371,7 @@ function generateAiResponse(userMessage) {
     };
   }
 
-  // 5. Antibiotics check
+  // 7. Antibiotics check
   if (normMessage.includes('antibiotic') || normMessage.includes('antibiotics')) {
     if (normMessage.includes('leftover') || normMessage.includes('unused') || normMessage.includes('home')) {
       return {
@@ -376,7 +412,7 @@ function generateAiResponse(userMessage) {
     };
   }
 
-  // 6. Generic Fallback
+  // 8. Generic Fallback
   return getGenericFallback(userMessage);
 }
 
@@ -408,31 +444,57 @@ export async function getCurrentUser() {
 
 /**
  * Send user query:
- * 1. Check multi-question message first to evaluate per-question scope & answers
+ * 1. Evaluate input classification (greetings, ambiguous words, multi-questions)
  * 2. Call Direct Google Gemini API (gemini-3.5-flash) from browser for single query
  * 3. Fallback to single query offline medical engine
  */
 export async function sendMessage(messageText, conversationId = null) {
   let aiResponse = null;
 
-  // 1. Evaluate multi-question messages first for per-question scope handling
-  const multiResp = handleMultiQuestionMessage(messageText);
-  if (multiResp) {
-    aiResponse = multiResp;
+  const normClean = (messageText || '').toLowerCase().trim().replace(/[^\w\s]/g, '');
+
+  // 1. Greetings & Small Talk
+  if (GREETING_KEYWORDS.includes(normClean) || !normClean) {
+    aiResponse = {
+      message: "Hi! I'm MediVerify AI — ask me any healthcare question or claim you would like verified.",
+      factCheck: null,
+      safetyLevel: 'standard',
+    };
   }
 
-  // 2. Direct Gemini API call (for single queries)
+  // 2. Ambiguous Single-Word Health Term
+  if (!aiResponse) {
+    const words = normClean.split(/\s+/).filter(Boolean);
+    if (words.length <= 2 && AMBIGUOUS_HEALTH_TERMS.includes(normClean)) {
+      const term = messageText.trim();
+      aiResponse = {
+        message: `Could you tell me a bit more about your question regarding ${term}? For example, are you asking about ${term} management, symptoms, or when to seek medical care?`,
+        factCheck: null,
+        safetyLevel: 'standard',
+      };
+    }
+  }
+
+  // 3. Evaluate multi-question messages
+  if (!aiResponse) {
+    const multiResp = handleMultiQuestionMessage(messageText);
+    if (multiResp) {
+      aiResponse = multiResp;
+    }
+  }
+
+  // 4. Direct Gemini API call (for single queries)
   if (!aiResponse) {
     aiResponse = await callDirectGeminiApi(messageText);
   }
 
-  // 3. Revised offline medical engine fallback (for single queries)
+  // 5. Revised offline medical engine fallback (for single queries)
   if (!aiResponse) {
     aiResponse = generateAiResponse(messageText);
   }
 
-  // 4. Validation Guard: If status is NOT UNVERIFIED but sources is empty, attach matched topic sources!
-  if (aiResponse?.factCheck?.status !== 'UNVERIFIED' && (!aiResponse.factCheck.sources || aiResponse.factCheck.sources.length === 0)) {
+  // 6. Validation Guard: If status is NOT UNVERIFIED but sources is empty, attach matched topic sources!
+  if (aiResponse?.factCheck && aiResponse.factCheck.status !== 'UNVERIFIED' && (!aiResponse.factCheck.sources || aiResponse.factCheck.sources.length === 0)) {
     const lowerMsg = (messageText || '').toLowerCase();
     if (lowerMsg.includes('dehydration') || lowerMsg.includes('water')) {
       aiResponse.factCheck.sources = KNOWLEDGE_SOURCES.dehydration;
@@ -441,8 +503,8 @@ export async function sendMessage(messageText, conversationId = null) {
     }
   }
 
-  // 5. Validation Guard: If status IS UNVERIFIED, ensure sources is strictly empty []
-  if (aiResponse?.factCheck?.status === 'UNVERIFIED') {
+  // 7. Validation Guard: If status IS UNVERIFIED, ensure sources is strictly empty []
+  if (aiResponse?.factCheck && aiResponse.factCheck.status === 'UNVERIFIED') {
     aiResponse.factCheck.sources = [];
   }
 

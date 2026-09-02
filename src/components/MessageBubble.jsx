@@ -75,8 +75,8 @@ export default function MessageBubble({ message, isUser, timestamp, factCheck, s
           </div>
         )}
 
-        {/* Safety warning */}
-        {!isUser && safetyLevel && safetyLevel !== 'none' && (
+        {/* Safety warning (only shown for critical/warning severity) */}
+        {!isUser && (safetyLevel === 'warning' || safetyLevel === 'emergency') && (
           <div className="w-full">
             <SafetyWarning
               severity={safetyLevel === 'warning' ? 'critical' : 'standard'}
@@ -85,8 +85,8 @@ export default function MessageBubble({ message, isUser, timestamp, factCheck, s
           </div>
         )}
 
-        {/* Fact check card */}
-        {!isUser && factCheck && (
+        {/* Fact check card (only shown for actual healthcare claims) */}
+        {!isUser && factCheck && factCheck.claim && (
           <div className="w-full">
             <FactCheckCard factCheck={factCheck} />
           </div>

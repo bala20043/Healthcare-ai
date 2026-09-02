@@ -113,7 +113,7 @@ DEMO_FALLBACKS = {
         }
     },
     "off_topic": {
-        "answer": "This topic is outside MediVerify AI's specialized healthcare scope. MediVerify AI is designed exclusively for healthcare fact verification and safe health information.",
+        "answer": "This query falls outside MediVerify AI's specialized healthcare scope. MediVerify AI is designed exclusively for medical fact verification and safe healthcare guidance.",
         "fact_check": {
             "status": "UNVERIFIED",
             "claim": "Non-healthcare inquiry",
@@ -127,6 +127,14 @@ DEMO_FALLBACKS = {
         }
     }
 }
+
+GREETING_KEYWORDS = [
+    "hi", "hello", "hey", "thanks", "thank you", "ok", "okay", "bye", "good morning", "good evening", "good afternoon", "how are you", "who are you", "help"
+]
+
+AMBIGUOUS_HEALTH_TERMS = [
+    "fever", "headache", "cough", "cold", "pain", "stomach", "nausea", "vomiting", "rash", "dizzy"
+]
 
 NON_HEALTHCARE_KEYWORDS = [
     "weather", "sports", "football", "cricket", "movie", "cinema", "python", "programming", "code", "capital of", "president", "currency", "crypto", "stock", "soil", "salinity", "farmer", "agricultural", "agriculture"
@@ -203,32 +211,32 @@ class GeminiService:
             else:
                 parsed = json.loads(raw_text)
 
-            status = str(parsed.get("fact_check", {}).get("status", "UNVERIFIED")).upper()
-            if status not in ["TRUE", "FALSE", "MIXED", "UNVERIFIED"]:
-                if "PARTIAL" in status:
-                    status = "MIXED"
-                else:
+            fc = parsed.get("fact_check")
+            fact_check_obj = None
+            if fc and isinstance(fc, dict) and fc.get("claim"):
+                status = str(fc.get("status", "UNVERIFIED")).upper()
+                if status not in ["TRUE", "FALSE", "MIXED", "UNVERIFIED"]:
                     status = "UNVERIFIED"
 
-            evidence = str(parsed.get("fact_check", {}).get("evidence_level", "HIGH")).upper()
-            if evidence not in ["HIGH", "MEDIUM", "LOW"]:
-                evidence = "HIGH"
+                evidence = str(fc.get("evidence_level", "HIGH")).upper()
+                if evidence not in ["HIGH", "MEDIUM", "LOW"]:
+                    evidence = "HIGH"
+
+                fact_check_obj = {
+                    "status": status,
+                    "claim": fc.get("claim", "General Health Inquiry"),
+                    "explanation": fc.get("explanation", "Verification completed against medical literature."),
+                    "evidence_level": evidence,
+                    "sources": fc.get("sources", [])
+                }
 
             safety_lvl = str(parsed.get("safety_notice", {}).get("level", "LOW")).upper()
             if safety_lvl not in ["LOW", "MEDIUM", "HIGH", "EMERGENCY"]:
                 safety_lvl = "LOW"
 
-            sources = parsed.get("fact_check", {}).get("sources", [])
-
             return {
                 "answer": parsed.get("answer", "No answer generated."),
-                "fact_check": {
-                    "status": status,
-                    "claim": parsed.get("fact_check", {}).get("claim", "General Health Inquiry"),
-                    "explanation": parsed.get("fact_check", {}).get("explanation", "Verification completed against medical literature."),
-                    "evidence_level": evidence,
-                    "sources": sources
-                },
+                "fact_check": fact_check_obj,
                 "safety_notice": {
                     "level": safety_lvl,
                     "message": parsed.get("safety_notice", {}).get("message", "Educational guidance only. Consult a doctor.")
@@ -327,7 +335,33 @@ class GeminiService:
         }
 
     def _get_fallback_response(self, user_message: str) -> Dict[str, Any]:
-        # Check multi-question message first
+        norm_clean = re.sub(r'[^\w\s]', '', user_message.lower().strip())
+
+        # 1. Greetings & Small Talk
+        if norm_clean in GREETING_KEYWORDS or norm_clean == "":
+            return {
+                "answer": "Hi! I'm MediVerify AI — ask me any healthcare question or claim you would like verified.",
+                "fact_check": None,
+                "safety_notice": {
+                    "level": "LOW",
+                    "message": "Educational information assistant."
+                }
+            }
+
+        # 2. Ambiguous Single-Word / Short Health Term
+        words = norm_clean.split()
+        if len(words) <= 2 and norm_clean in AMBIGUOUS_HEALTH_TERMS:
+            term = user_message.strip()
+            return {
+                "answer": f"Could you tell me a bit more about your question regarding {term}? For example, are you asking about {term} management, symptoms, or when to seek medical care?",
+                "fact_check": None,
+                "safety_notice": {
+                    "level": "LOW",
+                    "message": "Educational information assistant."
+                }
+            }
+
+        # 3. Check multi-question message
         multi_resp = self._handle_multi_question_fallback(user_message)
         if multi_resp:
             return multi_resp
@@ -335,20 +369,20 @@ class GeminiService:
         norm_msg = normalize_query(user_message)
         lower_msg = user_message.lower()
 
-        # 1. Non-healthcare check
+        # 4. Non-healthcare check for single queries
         if any(term in norm_msg or term in lower_msg for term in NON_HEALTHCARE_KEYWORDS):
             return DEMO_FALLBACKS["off_topic"]
 
-        # 2. Emergency check
+        # 5. Emergency check
         if any(term in norm_msg or term in lower_msg for term in ["heart pain", "chest pain", "breath", "emergency", "cardiac"]):
             return DEMO_FALLBACKS["emergency"]
 
-        # 3. Symptom / Medication request check
+        # 6. Symptom / Medication request check
         if ("fever" in norm_msg and any(t in norm_msg for t in ["tablet", "medicine", "pill", "take", "consider", "drug"])) or \
            any(phrase in norm_msg for phrase in ["what tablet", "which medicine", "medicine for", "tablet for", "what drug", "which pill", "headache medicine", "pain tablet", "head pain"]):
             return DEMO_FALLBACKS["fever_medication"]
 
-        # 4. Antibiotics checks
+        # 7. Antibiotics checks
         if "antibiotic" in norm_msg or "antibiotics" in norm_msg:
             if any(k in norm_msg for k in ["why", "prescribe", "doctor", "initial", "secondary"]):
                 return DEMO_FALLBACKS["secondary"]
@@ -356,11 +390,11 @@ class GeminiService:
                 return DEMO_FALLBACKS["leftover"]
             return DEMO_FALLBACKS["antibiotic"]
 
-        # 5. Dehydration check
+        # 8. Dehydration check
         if "water" in norm_msg or "dehydration" in norm_msg or "hyponatremia" in norm_msg:
             return DEMO_FALLBACKS["dehydration"]
 
-        # 6. Generic query fallback
+        # 9. Generic query fallback
         return {
             "answer": "Evaluating your health inquiry requires considering your individual medical history. Please consult a qualified pharmacist or doctor for personalized guidance.",
             "fact_check": {

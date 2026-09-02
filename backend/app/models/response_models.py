@@ -21,7 +21,7 @@ class ChatResponse(BaseModel):
     success: bool = True
     conversation_id: str = Field(..., description="UUID of the current conversation session")
     answer: str = Field(..., description="Clear, evidence-based AI response")
-    fact_check: FactCheckResult
+    fact_check: Optional[FactCheckResult] = None
     sources: List[MedicalSource] = Field(default_factory=list)
     safety_notice: SafetyNotice
     disclaimer: str = "This information is for educational purposes only and should not be considered medical advice or diagnosis. Always consult a qualified healthcare provider."

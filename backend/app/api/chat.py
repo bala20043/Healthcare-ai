@@ -89,23 +89,24 @@ async def chat_endpoint(
         )
 
     # 5. Build Fact Check Result with Verbatim Sources
-    fact_check_data = ai_raw.get("fact_check", {})
-    status_verdict = fact_check_data.get("status", "UNVERIFIED")
+    fact_check_data = ai_raw.get("fact_check")
+    if fact_check_data and isinstance(fact_check_data, dict):
+        status_verdict = fact_check_data.get("status", "UNVERIFIED")
+        if status_verdict == "UNVERIFIED":
+            final_sources = []
+        else:
+            final_sources = retrieved_sources
 
-    # When status is UNVERIFIED (no match), sources must be empty []
-    if status_verdict == "UNVERIFIED":
-        final_sources = []
+        fact_check_res = FactCheckResult(
+            status=status_verdict,
+            claim=fact_check_data.get("claim", user_message[:50]),
+            explanation=fact_check_data.get("explanation", "Verified against medical knowledge base."),
+            evidence_level=fact_check_data.get("evidence_level", "HIGH"),
+            sources=final_sources
+        )
     else:
-        # Otherwise, populate exact sources from knowledge base
-        final_sources = retrieved_sources
-
-    fact_check_res = FactCheckResult(
-        status=status_verdict,
-        claim=fact_check_data.get("claim", user_message[:50]),
-        explanation=fact_check_data.get("explanation", "Verified against medical knowledge base."),
-        evidence_level=fact_check_data.get("evidence_level", "HIGH"),
-        sources=final_sources
-    )
+        fact_check_res = None
+        final_sources = []
 
     # 6. Save to Supabase if authenticated
     if user_id and conversation_id:
@@ -124,7 +125,7 @@ async def chat_endpoint(
             user_id=user_id,
             role="ai",
             content=ai_raw["answer"],
-            fact_check=fact_check_res.model_dump(),
+            fact_check=fact_check_res.model_dump() if fact_check_res else None,
             sources=[s.model_dump() for s in final_sources],
             safety_level=final_safety.level,
             user_jwt=user_jwt
