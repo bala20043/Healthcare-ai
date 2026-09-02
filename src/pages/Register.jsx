@@ -37,7 +37,7 @@ const registerSchema = z
   });
 
 export default function Register() {
-  const { signUp, signInWithGoogle } = useAuth();
+  const { signUp, signIn, signInWithGoogle } = useAuth();
   const navigate = useNavigate();
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
@@ -86,11 +86,29 @@ export default function Register() {
       setSuccess(true);
       if (res?.session) {
         setIsConfirmedSession(true);
-        setTimeout(() => navigate('/dashboard'), 1500);
+        setTimeout(() => navigate('/dashboard'), 1200);
       } else {
         setIsConfirmedSession(false);
       }
     } catch (err) {
+      const errText = err.message || '';
+      if (errText.toLowerCase().includes('already registered')) {
+        // Auto-login fallback if user already exists
+        try {
+          const loginRes = await signIn(data.email, data.password);
+          if (loginRes?.session || loginRes?.user) {
+            setSuccess(true);
+            setIsConfirmedSession(true);
+            setTimeout(() => navigate('/dashboard'), 1000);
+            return;
+          }
+        } catch (loginErr) {
+          setAuthError(
+            'An account with this email address already exists. Please enter your correct password or click "Continue with Google" below.'
+          );
+          return;
+        }
+      }
       setAuthError(err.message || 'Registration failed. Please try again.');
     } finally {
       setIsLoading(false);
